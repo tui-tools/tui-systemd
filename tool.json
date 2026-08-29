@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "name": "tui-systemd",
+  "binary": "tui-systemd",
+  "tagline": "systemd units: what failed, why, and every action previewed",
+  "description": "A terminal UI for systemd. It opens on what failed — failed units sort first, always — and puts the journal that explains why one key away. Timers show what is scheduled and when it last fired; the boot view shows what made the last boot slow.\n\nThe unit list merges `list-units --all` with `list-unit-files`, so a unit that is installed but has never started is visible too. Every read works as an ordinary user, so the tool opens instantly and without a password; only an action escalates, and only behind a confirm dialog showing the exact `systemctl` command line.\n\nRun `tui-systemd --demo` for a sample machine with a couple of interesting failures. Nothing touches your system.",
+  "category": "systemd",
+  "homepage": "https://github.com/tui-tools/tui-systemd",
+  "repo": "https://github.com/tui-tools/tui-systemd",
+  "license": "MIT",
+  "platforms": ["linux/amd64", "linux/arm64"],
+  "icon": "assets/icon.svg",
+  "logo": "assets/logo.png",
+  "screenshots": [
+    {
+      "path": "docs/screenshots/tui-systemd-main.png",
+      "caption": "The unit list, with failed units sorted to the top"
+    },
+    {
+      "path": "docs/screenshots/tui-systemd-restart.png",
+      "caption": "Restarting a unit: the exact systemctl command line, shown before it runs"
+    },
+    {
+      "path": "docs/screenshots/tui-systemd-journal.png",
+      "caption": "A unit's journal, read without leaving the tool"
+    },
+    {
+      "path": "docs/screenshots/tui-systemd-failed.png",
+      "caption": "The failed-only filter, one tab away"
+    },
+    {
+      "path": "docs/screenshots/tui-systemd-timers.png",
+      "caption": "Timers: what is scheduled, when it fires next, when it last fired"
+    },
+    {
+      "path": "docs/screenshots/tui-systemd-boot.png",
+      "caption": "Boot times, slowest unit first"
+    },
+    {
+      "path": "docs/screenshots/tui-systemd-help.png",
+      "caption": "The help screen, generated from the same action table as the key map"
+    }
+  ],
+  "keys": [
+    { "key": "j / enter", "action": "Journal for the selected unit" },
+    { "key": "f", "action": "In the journal: follow, re-reading every 2s" },
+    { "key": "s / x", "action": "Start / stop the selected unit" },
+    { "key": "r / l", "action": "Restart / reload the selected unit" },
+    { "key": "e / D", "action": "Enable / disable the selected unit" },
+    { "key": "m / M", "action": "Mask / unmask the selected unit" },
+    { "key": "d", "action": "Reload the systemd manager (daemon-reload)" },
+    { "key": "tab", "action": "Cycle the state filter: all, failed, active, inactive" },
+    { "key": "/", "action": "Filter by name, description or state" },
+    { "key": "t", "action": "Timers" },
+    { "key": "b", "action": "Boot times, slowest first" },
+    { "key": "?", "action": "Help" },
+    { "key": "q", "action": "Quit" }
+  ],
+  "install": {
+    "pacman": {
+      "available": false,
+      "package": "tui-systemd",
+      "repo": "tui-tools",
+      "requires_repo_setup": true,
+      "command": "sudo pacman -S tui-systemd",
+      "url": "https://pkgs.tui.tools/arch",
+      "note": "Add the tui-tools repository to pacman.conf first."
+    },
+    "aur": {
+      "available": false,
+      "package": "tui-systemd-bin",
+      "repo": "aur",
+      "command": "paru -S tui-systemd-bin",
+      "url": "https://aur.archlinux.org/packages/tui-systemd-bin",
+      "note": "The -bin package installs the released static binary."
+    },
+    "apt": {
+      "available": false,
+      "package": "tui-systemd",
+      "repo": "tui-tools",
+      "requires_repo_setup": true,
+      "command": "sudo apt install tui-systemd",
+      "url": "https://pkgs.tui.tools/deb",
+      "note": "Add the tui-tools apt repository and its keyring first."
+    },
+    "dnf": {
+      "available": false,
+      "package": "tui-systemd",
+      "repo": "tui-tools",
+      "requires_repo_setup": true,
+      "command": "sudo dnf install tui-systemd",
+      "url": "https://pkgs.tui.tools/rpm",
+      "note": "Add the tui-tools.repo file first."
+    },
+    "zypper": {
+      "available": false,
+      "package": "tui-systemd",
+      "repo": "tui-tools",
+      "requires_repo_setup": true,
+      "command": "sudo zypper install tui-systemd",
+      "url": "https://pkgs.tui.tools/rpm",
+      "note": "Add the tui-tools repository first."
+    },
+    "binary": {
+      "available": true,
+      "pattern": "tui-systemd_{version}_linux_{arch}.tar.gz",
+      "command": "curl -fsSL https://github.com/tui-tools/tui-systemd/releases/download/v{version}/tui-systemd_{version}_linux_{arch}.tar.gz | tar -xz tui-systemd\nsudo install -m0755 tui-systemd /usr/local/bin/tui-systemd",
+      "url": "https://github.com/tui-tools/tui-systemd/releases",
+      "note": "One static binary. Verify it against checksums.txt from the same release."
+    },
+    "source": {
+      "available": true,
+      "command": "git clone https://github.com/tui-tools/tui-systemd\ncd tui-systemd && make build\nsudo install -m0755 bin/tui-systemd /usr/local/bin/tui-systemd",
+      "url": "https://github.com/tui-tools/tui-systemd",
+      "note": "Needs Go 1.26 or newer."
+    }
+  },
+  "security": {
+    "needs_sudo": "Only actions escalate: start, stop, restart, reload, enable, disable, mask, unmask and `daemon-reload`. Every read — the unit list, the journal, timers and boot times — works as an ordinary user. Escalation goes through `sudo -n`, which never prompts.",
+    "preview_before_run": true,
+    "no_daemon": true,
+    "no_network": true,
+    "static_binary": true,
+    "signed_releases": false,
+    "config_paths": [
+      "/etc/tui-systemd/config.toml",
+      "~/.config/tui-systemd/config.toml"
+    ]
+  },
+  "maintainers": [
+    { "name": "Edimar Cardoso", "github": "edimarlnx" }
+  ],
+  "since": "2026-08-29",
+  "keywords": ["systemd", "systemctl", "journalctl", "units", "timers", "tui", "bubbletea"]
+}

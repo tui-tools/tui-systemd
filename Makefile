@@ -9,7 +9,7 @@ LDFLAGS := -s -w -X main.version=$(VERSION)
 # kit, which is already a dependency: ask the module cache where it landed.
 KIT     = $(shell $(GO) list -m -f '{{.Dir}}' github.com/tui-tools/tui-kit)
 
-.PHONY: all build test vet fmt fmt-check lint check demo clean tidy install screenshots
+.PHONY: manifest readme all build test vet fmt fmt-check lint check demo clean tidy install screenshots
 
 all: check build
 
@@ -67,6 +67,18 @@ screenshots: build
 		--bin $(BIN)/$(TOOL) --name $(TOOL) --out docs/screenshots \
 		--screen main= --screen failed=\\t --screen restart=r \
 		--screen journal=j --screen timers=t --screen boot=b --screen help=?
+
+## readme: regenerate the Install section of the README from tool.json.
+readme:
+	python3 $(KIT)/tools/render-install.py --manifest tool.json --readme README.md
+
+## manifest: validate tool.json against the family schema in tui-kit.
+manifest:
+	@curl -fsSL --retry 3 -o /tmp/tui-tool.schema.json \
+		https://raw.githubusercontent.com/tui-tools/tui-kit/main/schema/tool.schema.json
+	@npx --yes -p ajv-cli@5 -p ajv-formats@3 ajv validate \
+		--spec=draft2020 -c ajv-formats \
+		-s /tmp/tui-tool.schema.json -d tool.json
 
 ## clean: remove build output.
 clean:

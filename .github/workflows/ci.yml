@@ -69,13 +69,38 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
         run: go build -trimpath -o "/tmp/tui-systemd_${GOARCH}" ./cmd/tui-systemd
 
+  manifest:
+    name: validate tool.json
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # The schema is shared by the family and lives in tui-kit, so a tool
+      # cannot drift from it by editing a local copy.
+      - name: fetch the manifest schema from tui-kit
+        run: |
+          curl -fsSL --retry 3 -o /tmp/tool.schema.json \
+            https://raw.githubusercontent.com/tui-tools/tui-kit/main/schema/tool.schema.json
+
+      - name: validate tool.json
+        run: |
+          npx --yes -p ajv-cli@5 -p ajv-formats@3 ajv validate \
+            --spec=draft2020 -c ajv-formats \
+            -s /tmp/tool.schema.json -d tool.json
+
   release:
     name: release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [check, cross-build]
+    needs: [check, cross-build, manifest]
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      SITE_DISPATCH_TOKEN: ${{ secrets.SITE_DISPATCH_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -92,3 +117,16 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Tell the family website that a release shipped, so it rebuilds now
+      # instead of waiting for its hourly run. Inert until the repository
+      # secret SITE_DISPATCH_TOKEN exists: a fine-grained PAT with
+      # "Contents: read and write" on tui-tools/tui-tools.github.io.
+      - name: notify the website
+        if: env.SITE_DISPATCH_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ env.SITE_DISPATCH_TOKEN }}
+        run: |
+          gh api repos/tui-tools/tui-tools.github.io/dispatches \
+            -f event_type=tool-released \
+            -f 'client_payload[tool]=tui-systemd'
