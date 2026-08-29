@@ -1,0 +1,211 @@
+<img src="assets/logo.png" alt="tui-systemd" width="240">
+
+A terminal UI for systemd units. It opens on what failed, shows you the journal
+that explains why, and **previews the exact command line of every change before
+running it**.
+
+![Unit list](docs/screenshots/tui-systemd-main.png)
+
+> **Status: early, under validation.** An independent tool that follows the
+> [Omarchy](https://omarchy.org) visual style; it is **not** part of the Omarchy
+> project and not endorsed by its maintainers. Expect rough edges.
+
+## Install
+
+Grab a static binary from the [releases](https://github.com/tui-tools/tui-systemd/releases),
+or build it yourself:
+
+```sh
+git clone https://github.com/tui-tools/tui-systemd
+cd tui-systemd
+make build
+sudo install -m0755 bin/tui-systemd /usr/local/bin/tui-systemd
+```
+
+One static binary, no daemon, no state of its own.
+
+## Try it without root
+
+```sh
+tui-systemd --demo
+```
+
+`--demo` runs against a sample machine with a couple of interesting failures.
+Every key works, every command is built and previewed for real, and nothing
+touches your system.
+
+## It runs as you
+
+Reading needs no privileges at all: the unit list, the journal, the timers and
+the boot breakdown all work as an ordinary user, so the tool opens instantly and
+without a password. Only an action escalates, through `sudo -n`, which never
+prompts — run `sudo -v` in another terminal first, or start `tui-systemd` with
+sudo.
+
+## Every change is previewed
+
+![Restart confirmation](docs/screenshots/tui-systemd-restart.png)
+
+`y` runs the command shown, `n` does not. There is no other path to a change:
+the UI hands the same value to the preview and to the runner, so what you read
+is what executes.
+
+## The journal, where you already are
+
+Press `j` on a unit to read its log without leaving the tool. `f` follows it,
+re-reading every two seconds — a re-read on a timer rather than a `journalctl -f`
+child process, because this tool keeps nothing running.
+
+![Journal](docs/screenshots/tui-systemd-journal.png)
+
+## Timers and boot
+
+`t` shows what is scheduled and when it last fired. `b` shows what made the last
+boot slow.
+
+![Timers](docs/screenshots/tui-systemd-timers.png)
+
+![Boot times](docs/screenshots/tui-systemd-boot.png)
+
+## Keys
+
+| Key | Action |
+| --- | --- |
+| `↑` / `↓` | Move the selection (`ctrl+p` / `ctrl+n` also work) |
+| `g` / `G` | First / last row |
+| `pgup` / `pgdn` | Scroll a page |
+| `tab` | Cycle the state filter: all, failed, active, inactive |
+| `/` | Filter by name, description or state (`esc` clears) |
+| `s` / `x` | Start / stop the selected unit |
+| `r` / `l` | Restart / reload the selected unit |
+| `e` / `D` | Enable / disable the selected unit |
+| `m` / `M` | Mask / unmask the selected unit |
+| `d` | Reload the systemd manager (`daemon-reload`) |
+| `j` / `enter` | Journal for the selected unit |
+| `f` | In the journal: follow, re-reading every 2s |
+| `t` | Timers |
+| `b` | Boot times, slowest first |
+| `ctrl+r` | Re-read the current view |
+| `?` | Help |
+| `q` | Quit |
+
+**`j` opens the journal, so the list moves with the arrows rather than with
+`j`/`k`.** That is the one place this tool breaks with the family's vim-style
+navigation: `j` for journal is worth more here than `j` for down, and `k`,
+`ctrl+n` and `ctrl+p` still work.
+
+![Help](docs/screenshots/tui-systemd-help.png)
+
+## What v0.1 can do
+
+- List every unit systemd knows, merged from `list-units --all` and
+  `list-unit-files`, so a unit that is installed but has never started is
+  visible too.
+- **Failed units sort first**, always. That is why you opened the tool.
+- Filter by state (`tab`) and by text across the name, the description and
+  every state field (`/`).
+- Start, stop, restart, reload, enable, disable, mask and unmask a unit, and
+  reload the systemd manager, each behind a command preview and a confirmation.
+- Read a unit's journal, and follow it.
+- List timers with when they fire next and when they last fired.
+- Show the slowest units of the last boot.
+- Follow the active Omarchy theme, and respect `NO_COLOR`.
+
+## What v0.1 cannot do
+
+- **System units only.** No `--user` scope yet.
+- **No `systemctl edit`**, no drop-in editing, no unit file viewing.
+- **No dependency tree**, no `systemd-analyze critical-chain` or plots.
+- **No live status detail** beyond the journal: no cgroup, no main PID, no
+  memory or task counts.
+- No `--now` combinations: enable and start are separate keys, and separate
+  confirmations.
+- The journal is read-only and unfiltered; there is no priority or time filter.
+- **The timers view needs systemd 250 or newer**, which is when
+  `list-timers --output=json` landed. The unit list works on older systemd.
+
+## Configuration
+
+`/etc/tui-systemd/config.toml`, then `~/.config/tui-systemd/config.toml` (the
+user file overrides the machine-wide one), then `TUI_SYSTEMD_*` in the
+environment. Flags override everything. See
+[`examples/config.toml`](examples/config.toml).
+
+```toml
+# Privilege escalation prefix used for actions; "" runs systemctl directly.
+sudo = "sudo -n"
+
+# Path to an Omarchy-style colors.toml; empty follows the active theme.
+theme = ""
+
+# How many journal lines the log panel asks for.
+journal_lines = "200"
+```
+
+## Theme
+
+The default palette is **Tokyo Night**. On Omarchy, the tool reads the active
+desktop theme from `~/.config/omarchy/current/theme/colors.toml` and follows it.
+`TUI_THEME` or `--theme` override; `NO_COLOR` drops color and keeps layout. The
+rules live in [tui-kit](https://github.com/tui-tools/tui-kit#theme-rules).
+
+## Architecture
+
+The UI never assembles a `systemctl` command line. It talks to
+`internal/systemd.Backend`, which returns a plain model and produces
+`runner.Command` values for anything that changes the machine. Those are shown
+in the confirm dialog and handed back to the
+[kit runner](https://github.com/tui-tools/tui-kit#the-contract-preview-confirm-run),
+which resolves the binary and the privilege prefix.
+
+Three binaries are involved, each with its own runner and its own failure
+message: `systemctl` for the list and the actions, `journalctl` for the log
+panel, `systemd-analyze` for the boot view. Only `systemctl` escalates, and only
+for actions. A host missing `journalctl` or `systemd-analyze` still gets the unit
+list, and the affected view says what is missing.
+
+Both list readers use `--output=json` rather than the text tables. The tables
+are column-aligned, truncate to the terminal width and right-align their time
+columns against narrower headers — none of that is a contract, and a parser
+that quietly mangles a timestamp is worse than one that fails.
+
+## Prior art
+
+- [systemctl-tui](https://github.com/rgwood/systemctl-tui) (Rust, MIT) — fast,
+  focused, and the closest thing to this tool.
+- [isd](https://github.com/isd-project/isd) (Python, Textual) — richer, with
+  unit file editing and a preview pane.
+- [sysz](https://github.com/joehillen/sysz) (shell + fzf) — an fzf front end to
+  `systemctl`, and the smallest thing that works.
+
+`tui-systemd` is an independent implementation. What it adds is the family's
+contract: every mutation is previewed as the literal command line and confirmed
+before it runs, and the same binary drives a sample machine under `--demo`.
+
+## Development
+
+```sh
+make check        # gofmt, go vet and the tests: what CI runs
+make test
+make build
+make demo
+make screenshots  # re-render the frames above from --demo
+```
+
+The parsers are table-driven against real `systemctl` output. If one is wrong on
+your machine, paste your output in as a new case — that is the fastest possible
+bug report.
+
+## Safety notes
+
+- **Masking is not disabling.** A masked unit cannot be started by anything,
+  including its own dependencies. The confirm dialog says so; `M` undoes it.
+- Stopping a unit stops everything that depends on it. systemd does not ask
+  twice, and neither does this tool beyond its one confirmation.
+- The tool re-reads the unit list after every change, so what you see is what
+  systemd reports, not what the tool assumed.
+
+## License
+
+MIT — see [LICENSE](LICENSE). Part of the
+[tui-tools](https://github.com/tui-tools) family.

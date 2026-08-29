@@ -1,0 +1,24 @@
+# tui-systemd configuration.
+#
+# Read from /etc/tui-systemd/config.toml first, then
+# ~/.config/tui-systemd/config.toml, with the user file overriding the
+# machine-wide one. TUI_SYSTEMD_* environment variables override both, and
+# command line flags override everything.
+
+# Privilege escalation prefix used for actions. Reading the unit list, the
+# journal and the boot times never needs it.
+# "sudo -n" never prompts: run `sudo -v` first, or start tui-systemd with sudo.
+# Set to "" to run systemctl directly (as root).
+sudo = "sudo -n"
+
+# Path to an Omarchy-style colors.toml. Empty follows the active Omarchy
+# theme when present, and falls back to the built-in Tokyo Night palette.
+theme = ""
+
+# How many journal lines the log panel asks for.
+journal_lines = "200"
+
+# Every key can also be set in the environment, upper-cased and prefixed:
+#   TUI_SYSTEMD_SUDO="doas"
+#   TUI_SYSTEMD_JOURNAL_LINES=500
+#   TUI_SYSTEMD_THEME=~/themes/gruvbox/colors.toml
