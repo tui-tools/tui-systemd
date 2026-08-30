@@ -77,7 +77,7 @@ func (a *app) unitsView() string {
 	default:
 		body = a.unitsTable()
 	}
-	return a.screen(a.unitsHeader(), body, shortHelpKeys(), a.defaultStatus())
+	return a.screen(a.unitsHeader(), body, a.shortHelpKeys(), a.defaultStatus())
 }
 
 // filterLabel describes the active filters, for the empty state.
@@ -116,6 +116,11 @@ func (a *app) unitsHeader() string {
 		{Label: "running", Value: strconv.Itoa(running)},
 		{Label: "total", Value: strconv.Itoa(len(a.units))},
 		{Label: "showing", Value: string(a.state)},
+	}
+	// The systemd version, when it was probed: quiet on a tested version,
+	// coloured on one nobody has run against.
+	if a.backendCompat.Backend != "" {
+		facts = append(facts, ui.CompatFact(t, a.backendCompat))
 	}
 
 	subtitle := a.backend.Describe()
@@ -436,20 +441,25 @@ func shortDuration(d time.Duration) string {
 	}
 }
 
-// shortHelpKeys is the single-line hint bar on the main screen.
-func shortHelpKeys() []ui.KeyHint {
-	return []ui.KeyHint{
+// shortHelpKeys is the single-line hint bar on the main screen. A view this
+// systemd cannot serve is not advertised: on a machine older than 250 the
+// timers hint is left out rather than offered and then refused.
+func (a *app) shortHelpKeys() []ui.KeyHint {
+	hints := []ui.KeyHint{
 		{Key: "s", Desc: "start"},
 		{Key: "x", Desc: "stop"},
 		{Key: "r", Desc: "restart"},
 		{Key: "e", Desc: "enable"},
 		{Key: "j", Desc: "journal"},
-		{Key: "t", Desc: "timers"},
-		{Key: "b", Desc: "boot"},
-		{Key: "/", Desc: "filter"},
-		{Key: "?", Desc: "help"},
-		{Key: "q", Desc: "quit"},
 	}
+	if a.hasTimers() {
+		hints = append(hints, ui.KeyHint{Key: "t", Desc: "timers"})
+	}
+	return append(hints,
+		ui.KeyHint{Key: "b", Desc: "boot"},
+		ui.KeyHint{Key: "/", Desc: "filter"},
+		ui.KeyHint{Key: "?", Desc: "help"},
+		ui.KeyHint{Key: "q", Desc: "quit"})
 }
 
 // actionHints renders the action table two keys to a row, which is what keeps

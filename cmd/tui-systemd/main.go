@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -115,8 +116,13 @@ func run(args []string) error {
 
 	// --check is the non-interactive path: it reads the machine and prints,
 	// and never starts a terminal program.
+	// The systemd version is probed once, here, and used by both paths: the
+	// header shows it, the app gates its version-dependent views on it, and
+	// --check reports it so the smoke test can record it.
+	backendCompat := probeCompat(context.Background(), opts.demo)
+
 	if opts.check {
-		return runCheck(backend, os.Stdout)
+		return runCheck(backend, backendCompat, os.Stdout)
 	}
 
 	// The configured theme is handed to the kit through the same variable the
@@ -128,7 +134,7 @@ func run(args []string) error {
 	}
 
 	app := newApp(backend, theme.New(),
-		cfg.Int(keyJournalLines, systemd.DefaultJournalLines))
+		cfg.Int(keyJournalLines, systemd.DefaultJournalLines), backendCompat)
 	program := tea.NewProgram(app, tea.WithAltScreen())
 	_, err = program.Run()
 	return err

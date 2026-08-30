@@ -8,7 +8,10 @@
   "homepage": "https://github.com/tui-tools/tui-systemd",
   "repo": "https://github.com/tui-tools/tui-systemd",
   "license": "MIT",
-  "platforms": ["linux/amd64", "linux/arm64"],
+  "platforms": [
+    "linux/amd64",
+    "linux/arm64"
+  ],
   "icon": "assets/icon.svg",
   "logo": "assets/logo.png",
   "screenshots": [
@@ -42,19 +45,99 @@
     }
   ],
   "keys": [
-    { "key": "j / enter", "action": "Journal for the selected unit" },
-    { "key": "f", "action": "In the journal: follow, re-reading every 2s" },
-    { "key": "s / x", "action": "Start / stop the selected unit" },
-    { "key": "r / l", "action": "Restart / reload the selected unit" },
-    { "key": "e / D", "action": "Enable / disable the selected unit" },
-    { "key": "m / M", "action": "Mask / unmask the selected unit" },
-    { "key": "d", "action": "Reload the systemd manager (daemon-reload)" },
-    { "key": "tab", "action": "Cycle the state filter: all, failed, active, inactive" },
-    { "key": "/", "action": "Filter by name, description or state" },
-    { "key": "t", "action": "Timers" },
-    { "key": "b", "action": "Boot times, slowest first" },
-    { "key": "?", "action": "Help" },
-    { "key": "q", "action": "Quit" }
+    {
+      "key": "j / enter",
+      "action": "Journal for the selected unit"
+    },
+    {
+      "key": "f",
+      "action": "In the journal: follow, re-reading every 2s"
+    },
+    {
+      "key": "s / x",
+      "action": "Start / stop the selected unit"
+    },
+    {
+      "key": "r / l",
+      "action": "Restart / reload the selected unit"
+    },
+    {
+      "key": "e / D",
+      "action": "Enable / disable the selected unit"
+    },
+    {
+      "key": "m / M",
+      "action": "Mask / unmask the selected unit"
+    },
+    {
+      "key": "d",
+      "action": "Reload the systemd manager (daemon-reload)"
+    },
+    {
+      "key": "tab",
+      "action": "Cycle the state filter: all, failed, active, inactive"
+    },
+    {
+      "key": "/",
+      "action": "Filter by name, description or state"
+    },
+    {
+      "key": "t",
+      "action": "Timers"
+    },
+    {
+      "key": "b",
+      "action": "Boot times, slowest first"
+    },
+    {
+      "key": "?",
+      "action": "Help"
+    },
+    {
+      "key": "q",
+      "action": "Quit"
+    }
+  ],
+  "backends": [
+    {
+      "name": "systemd",
+      "binary": "systemctl",
+      "versionCommand": [
+        "systemctl",
+        "--version"
+      ],
+      "versionRegex": "systemd ([0-9][0-9.]*)",
+      "minimum": "230",
+      "searchPaths": [
+        "/usr/bin/systemctl",
+        "/bin/systemctl"
+      ],
+      "features": [
+        {
+          "name": "timers",
+          "since": "250"
+        },
+        {
+          "name": "boot-blame",
+          "since": "230"
+        }
+      ],
+      "notes": [
+        {
+          "range": "<250",
+          "impact": "`list-timers` has no JSON output, so the timers view is not offered: the text table cannot be parsed without mangling its timestamps"
+        },
+        {
+          "range": "<245",
+          "impact": "`list-units --plain` is absent on some builds, so the unit list falls back to the decorated output"
+        }
+      ],
+      "tested": [
+        "255",
+        "259",
+        "261"
+      ]
+    }
   ],
   "install": {
     "pacman": {
@@ -128,8 +211,19 @@
     ]
   },
   "maintainers": [
-    { "name": "Edimar Cardoso", "github": "edimarlnx" }
+    {
+      "name": "Edimar Cardoso",
+      "github": "edimarlnx"
+    }
   ],
   "since": "2026-08-29",
-  "keywords": ["systemd", "systemctl", "journalctl", "units", "timers", "tui", "bubbletea"]
+  "keywords": [
+    "systemd",
+    "systemctl",
+    "journalctl",
+    "units",
+    "timers",
+    "tui",
+    "bubbletea"
+  ]
 }

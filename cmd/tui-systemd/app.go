@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/tui-tools/tui-kit/compat"
 	"github.com/tui-tools/tui-kit/runner"
 	"github.com/tui-tools/tui-kit/theme"
 	"github.com/tui-tools/tui-kit/ui"
@@ -42,6 +43,9 @@ const followInterval = 2 * time.Second
 type app struct {
 	backend systemd.Backend
 	theme   theme.Theme
+	// backendCompat is what the version probe found: it is rendered in the
+	// header and it answers which views this systemd supports.
+	backendCompat compat.Result
 
 	units   []systemd.Unit
 	timers  []systemd.Timer
@@ -113,18 +117,20 @@ type ranMsg struct {
 }
 
 // newApp builds the model around a backend.
-func newApp(backend systemd.Backend, th theme.Theme, journalLines int) *app {
+func newApp(backend systemd.Backend, th theme.Theme, journalLines int,
+	backendCompat compat.Result) *app {
 	if journalLines <= 0 {
 		journalLines = systemd.DefaultJournalLines
 	}
 	a := &app{
-		backend:      backend,
-		theme:        th,
-		width:        80,
-		height:       24,
-		loading:      true,
-		state:        systemd.StateAll,
-		journalLines: journalLines,
+		backend:       backend,
+		theme:         th,
+		backendCompat: backendCompat,
+		width:         80,
+		height:        24,
+		loading:       true,
+		state:         systemd.StateAll,
+		journalLines:  journalLines,
 	}
 	if th.Warning != "" {
 		a.setStatus(ui.StatusWarn, th.Warning)
@@ -527,16 +533,57 @@ func (a *app) openJournal() tea.Cmd {
 	return a.loadJournal(unit.Name)
 }
 
-// openTimers shows the timer list.
+// hasTimers reports whether this systemd can produce a timer list the tool can
+// parse. The answer comes from the manifest (`timers` since 250), not from a
+// version comparison written here: `list-timers` grew --output=json in 250,
+// and its text table cannot be sliced into columns without mangling the
+// timestamps.
+func (a *app) hasTimers() bool {
+	return a.backendCompat.Caps().Has("timers")
+}
+
+// timersUnavailable is the message shown when the key is pressed anyway. It
+// names the version that would be needed and the one that is running, because
+// "unavailable" without a reason is what sends people to the issue tracker.
+func (a *app) timersUnavailable() string {
+	message := "the timers view needs systemd 250 or newer"
+	if since, ok := a.backendCompat.Caps().Since("timers"); ok {
+		message = "the timers view needs systemd " + since + " or newer"
+	}
+	if version := a.backendCompat.Version; version != "" {
+		message += "; this machine runs " + version
+	}
+	return message
+}
+
+// openTimers shows the timer list, when this systemd has one.
 func (a *app) openTimers() tea.Cmd {
+	if !a.hasTimers() {
+		a.setStatus(ui.StatusWarn, a.timersUnavailable())
+		return nil
+	}
 	a.mode = modeTimers
 	a.cursor, a.offset = 0, 0
 	a.loading = true
 	return a.loadTimers()
 }
 
-// openBoot shows the boot breakdown.
+// openBoot shows the boot breakdown, when this systemd can produce one.
+// `systemd-analyze blame` predates the minimum this tool declares, so the gate
+// only fires on a machine the header has already flagged as too old — which is
+// exactly the machine where a silent empty view would be confusing.
 func (a *app) openBoot() tea.Cmd {
+	if !a.backendCompat.Caps().Has("boot-blame") {
+		message := "the boot view needs a newer systemd"
+		if since, ok := a.backendCompat.Caps().Since("boot-blame"); ok {
+			message = "the boot view needs systemd " + since + " or newer"
+		}
+		if version := a.backendCompat.Version; version != "" {
+			message += "; this machine runs " + version
+		}
+		a.setStatus(ui.StatusWarn, message)
+		return nil
+	}
 	a.mode = modeBoot
 	a.cursor, a.offset = 0, 0
 	a.loading = true

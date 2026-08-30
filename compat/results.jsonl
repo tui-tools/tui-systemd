@@ -1,0 +1,3 @@
+{"backend": "systemd", "date": "2026-08-30", "distro": "fedora-44", "result": "pass", "suite": "smoke", "tool": "tui-systemd", "version": "259"}
+{"backend": "systemd", "date": "2026-08-30", "distro": "omarchy-server-4.0.1", "result": "pass", "suite": "smoke", "tool": "tui-systemd", "version": "261"}
+{"backend": "systemd", "date": "2026-08-30", "distro": "ubuntu-24.04", "result": "pass", "suite": "smoke", "tool": "tui-systemd", "version": "255"}

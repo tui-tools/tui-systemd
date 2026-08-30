@@ -1,13 +1,34 @@
 package main
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/tui-tools/tui-kit/compat"
+	"github.com/tui-tools/tui-kit/manifest"
 	"github.com/tui-tools/tui-kit/theme"
+	tuisystemd "github.com/tui-tools/tui-systemd"
 	"github.com/tui-tools/tui-systemd/internal/systemd"
 )
+
+// testCompat probes the manifest's real systemd backend against a canned
+// `systemctl --version` output, so the header and the capability gate are
+// exercised with the block the binary ships rather than a hand-written one.
+func testCompat(t *testing.T, versionOutput string) compat.Result {
+	t.Helper()
+	m, err := manifest.Load(tuisystemd.ManifestJSON)
+	if err != nil {
+		t.Fatalf("manifest: %v", err)
+	}
+	backend, ok := m.Backend(backendName)
+	if !ok {
+		t.Fatalf("the manifest declares no %s backend", backendName)
+	}
+	return compat.ProbeWith(context.Background(), backend,
+		func(context.Context, []string) (string, error) { return versionOutput, nil })
+}
 
 // newTestApp builds an app on the demo backend with its first read already
 // applied, which is the state the user actually types into.
@@ -15,7 +36,7 @@ func newTestApp(t *testing.T) (*app, *systemd.Fake) {
 	t.Helper()
 	fake := systemd.NewFake()
 	a := newApp(fake, theme.FromPalette(theme.TokyoNight()),
-		systemd.DefaultJournalLines)
+		systemd.DefaultJournalLines, testCompat(t, "systemd 257 (257.2-1-arch)"))
 	a.width, a.height = 100, 30
 
 	msg := a.Init()()

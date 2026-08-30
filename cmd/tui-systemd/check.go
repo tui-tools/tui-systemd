@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tui-tools/tui-kit/compat"
 	"github.com/tui-tools/tui-systemd/internal/systemd"
 )
 
@@ -29,6 +30,11 @@ type checkReport struct {
 	Version  string `json:"version"`
 	Backend  string `json:"backend"`
 	Describe string `json:"describe"`
+
+	// Compat is what the version probe found. It is reported rather than
+	// asserted: an untested version is a fact about the machine, not a
+	// failure of the read path.
+	Compat compat.Result `json:"compat"`
 
 	Units   int `json:"units"`
 	Active  int `json:"active"`
@@ -63,7 +69,8 @@ type journalProbe struct {
 // as JSON. It returns an error when the unit list cannot be read, which main
 // turns into a non-zero exit — so a caller can treat the exit code alone as
 // the verdict.
-func runCheck(backend systemd.Backend, out io.Writer) error {
+func runCheck(backend systemd.Backend, backendCompat compat.Result,
+	out io.Writer) error {
 	ctx, cancel := context.WithTimeout(context.Background(), checkTimeout)
 	defer cancel()
 
@@ -78,6 +85,7 @@ func runCheck(backend systemd.Backend, out io.Writer) error {
 		Version:  version,
 		Backend:  backend.Name(),
 		Describe: backend.Describe(),
+		Compat:   backendCompat,
 		Units:    len(units),
 	}
 	for _, unit := range units {

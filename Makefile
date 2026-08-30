@@ -9,7 +9,7 @@ LDFLAGS := -s -w -X main.version=$(VERSION)
 # kit, which is already a dependency: ask the module cache where it landed.
 KIT     = $(shell $(GO) list -m -f '{{.Dir}}' github.com/tui-tools/tui-kit)
 
-.PHONY: manifest readme all build test vet fmt fmt-check lint check demo clean tidy install screenshots
+.PHONY: manifest readme compat check-exec all build test vet fmt fmt-check lint check demo clean tidy install screenshots
 
 all: check build
 
@@ -38,8 +38,8 @@ fmt-check:
 		echo "these files need gofmt:"; echo "$$out"; exit 1; \
 	fi
 
-## lint: fmt-check plus vet. golangci-lint is used when installed.
-lint: fmt-check vet
+## lint: fmt-check, vet and the exec boundary. golangci-lint when installed.
+lint: fmt-check vet check-exec
 	@if command -v golangci-lint >/dev/null 2>&1; then \
 		golangci-lint run ./...; \
 	else \
@@ -68,9 +68,22 @@ screenshots: build
 		--screen main= --screen failed=\\t --screen restart=r \
 		--screen journal=j --screen timers=t --screen boot=b --screen help=?
 
-## readme: regenerate the Install section of the README from tool.json.
+## readme: regenerate the generated README sections from tool.json.
 readme:
 	python3 $(KIT)/tools/render-install.py --manifest tool.json --readme README.md
+	python3 $(KIT)/tools/render-compat.py --manifest tool.json --readme README.md
+
+## compat: harvest the lab logs into compat/results.jsonl and regenerate the
+## tested versions in tool.json. Run it after `lab.sh test $(TOOL)`.
+compat:
+	python3 $(KIT)/tools/compat-sync.py --manifest tool.json \
+		--results compat/results.jsonl \
+		--from-log $(wildcard ../tui-lab/out/results/*-$(TOOL)/*.log)
+
+## check-exec: assert that only a backend package starts a process.
+check-exec:
+	bash $(KIT)/tools/check-exec.sh .
+
 
 ## manifest: validate tool.json against the family schema in tui-kit.
 manifest:
