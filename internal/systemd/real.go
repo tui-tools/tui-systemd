@@ -40,6 +40,19 @@ var unprivileged = false
 // Available reports whether systemctl is installed on this host.
 func Available() bool { return runner.Available("systemctl", "/usr/bin/systemctl") }
 
+// JournalAvailable reports whether journalctl is installed. It is optional:
+// without it the unit list still works and only the log panel is empty, which
+// is exactly the difference a bug report has to be able to state.
+func JournalAvailable() bool {
+	return runner.Available("journalctl", "/usr/bin/journalctl", "/bin/journalctl")
+}
+
+// AnalyzeAvailable reports whether systemd-analyze is installed. Like
+// journalctl it is optional, and only the boot view depends on it.
+func AnalyzeAvailable() bool {
+	return runner.Available("systemd-analyze", "/usr/bin/systemd-analyze")
+}
+
 // New builds the real backend. sudoPrefix comes from the configuration
 // ("sudo -n"); pass nil to run systemctl directly. Only systemctl is required:
 // a host without journalctl or systemd-analyze still gets the unit list, and

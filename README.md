@@ -214,6 +214,48 @@ parser regression.
 against real machines on Ubuntu, Fedora and Omarchy Server; the assertions live
 in [`test/smoke.sh`](test/smoke.sh).
 
+## `--report`, for bug reports
+
+```sh
+tui-systemd --report
+```
+
+`--report` prints, in one block, everything a maintainer has to ask for
+otherwise: the tool and kit versions, the systemd version probed off the
+machine, whether `journalctl` and `systemd-analyze` are installed, the
+distribution, the kernel, the terminal, the theme, the escalation prefix, the
+journal backlog the log panel asks for, and whether the running binary came
+from a package. It needs no privileges and reads no units, so it works on the
+machine where the bug is — including one where no backend can be selected at
+all, which is itself a thing worth reporting.
+
+```console
+$ tui-systemd --report
+tui-systemd 0.1.0 (kit v0.2.9)
+backend: systemd 257
+mode: live
+distro: fedora 42 (Fedora Linux 42 (Workstation Edition))
+kernel: 6.19.14-108.fc42.x86_64
+arch: x86_64
+locale: en_US.UTF-8
+term: xterm-256color
+theme: tokyo-night
+sudo: sudo -n
+root: no
+binary: /usr/bin/tui-systemd (packaged)
+helpers: journalctl present, systemd-analyze present
+journal lines: 200
+```
+
+The block is written to be published as it is: it carries no hostname, user
+name, home path or address, and no environment variable beyond `LANG`,
+`LC_ALL`, `TERM` and `TERM_PROGRAM`. A binary living under your home directory
+is reported as being there without naming the path. `--report` works with
+`--demo` too, where it says so on the `mode` line.
+
+The bug form asks for this block first — see
+[`.github/ISSUE_TEMPLATE/bug_report.yml`](.github/ISSUE_TEMPLATE/bug_report.yml).
+
 ## It runs as you
 
 Reading needs no privileges at all: the unit list, the journal, the timers and
