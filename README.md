@@ -113,6 +113,38 @@ tui-systemd --demo
 Every key works, every command is built and previewed for real, and nothing
 touches your system.
 
+## `--check`, for scripts and tests
+
+`--check` is the non-interactive read path: it reads the machine through the
+same backend the UI would use, prints the parsed model as JSON and exits 0, or
+exits 1 with the reason if systemd cannot be read. No UI, and it never builds or
+runs an action, so it is safe to run anywhere.
+
+```console
+$ tui-systemd --check | head -10
+{
+  "tool": "tui-systemd",
+  "version": "0.1.0",
+  "backend": "systemd",
+  "describe": "systemctl via /usr/bin/sudo -n",
+  "units": 543,
+  "active": 272,
+  "failed": 0,
+  "enabled": 85,
+  "timers": 20,
+```
+
+Alongside the counts it carries a five-unit sample and the result of one real
+journal read, so a single invocation covers `list-units`, `list-unit-files`,
+`list-timers`, `systemd-analyze blame` and `journalctl`. It exists so a test can
+assert on what the tool *parsed* rather than on what it painted — for instance
+that the active-unit count matches `systemctl`'s own, which is what catches a
+parser regression.
+
+[tui-lab](https://github.com/tui-tools/tui-lab) uses it to test this tool
+against real machines on Ubuntu, Fedora and Omarchy Server; the assertions live
+in [`test/smoke.sh`](test/smoke.sh).
+
 ## It runs as you
 
 Reading needs no privileges at all: the unit list, the journal, the timers and

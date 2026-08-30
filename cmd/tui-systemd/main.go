@@ -37,6 +37,7 @@ func defaults() map[string]string {
 // options holds the parsed command line.
 type options struct {
 	demo        bool
+	check       bool
 	themePath   string
 	sudo        string
 	showVersion bool
@@ -52,6 +53,9 @@ func parseFlags(args []string, out *os.File) (options, error) {
 	fs.SetOutput(out)
 	fs.BoolVar(&opts.demo, "demo", false,
 		"run against a sample machine, without touching the real one")
+	fs.BoolVar(&opts.check, "check", false,
+		"read the machine and print the parsed model as JSON, then exit "+
+			"(no UI, no changes); exit 1 if the backend cannot be read")
 	fs.StringVar(&opts.themePath, "theme", "",
 		"path to an Omarchy-style colors.toml (overrides the config file)")
 	fs.StringVar(&opts.sudo, "sudo", "",
@@ -107,6 +111,12 @@ func run(args []string) error {
 	backend, err := pickBackend(cfg, opts)
 	if err != nil {
 		return err
+	}
+
+	// --check is the non-interactive path: it reads the machine and prints,
+	// and never starts a terminal program.
+	if opts.check {
+		return runCheck(backend, os.Stdout)
 	}
 
 	// The configured theme is handed to the kit through the same variable the
