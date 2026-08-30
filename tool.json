@@ -140,6 +140,7 @@
     }
   ],
   "install": {
+    "repo_url": "https://pkgs.tui.tools",
     "pacman": {
       "available": false,
       "package": "tui-systemd",
@@ -147,7 +148,7 @@
       "requires_repo_setup": true,
       "command": "sudo pacman -S tui-systemd",
       "url": "https://pkgs.tui.tools/arch",
-      "note": "Add the tui-tools repository to pacman.conf first."
+      "note": "Upgrades then arrive with the rest of your system updates."
     },
     "aur": {
       "available": false,
@@ -164,7 +165,7 @@
       "requires_repo_setup": true,
       "command": "sudo apt install tui-systemd",
       "url": "https://pkgs.tui.tools/deb",
-      "note": "Add the tui-tools apt repository and its keyring first."
+      "note": "Upgrades then arrive with the rest of your system updates."
     },
     "dnf": {
       "available": false,
@@ -173,7 +174,7 @@
       "requires_repo_setup": true,
       "command": "sudo dnf install tui-systemd",
       "url": "https://pkgs.tui.tools/rpm",
-      "note": "Add the tui-tools.repo file first."
+      "note": "Upgrades then arrive with the rest of your system updates."
     },
     "zypper": {
       "available": false,
@@ -182,7 +183,7 @@
       "requires_repo_setup": true,
       "command": "sudo zypper install tui-systemd",
       "url": "https://pkgs.tui.tools/rpm",
-      "note": "Add the tui-tools repository first."
+      "note": "The rpm repository is shared with dnf; zypper support is not tested yet."
     },
     "binary": {
       "available": true,
