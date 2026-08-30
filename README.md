@@ -1,5 +1,7 @@
 <img src="assets/logo.png" alt="tui-systemd" width="240">
 
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/tui-tools/tui-systemd/badge)](https://scorecard.dev/viewer/?uri=github.com/tui-tools/tui-systemd)
+
 A terminal UI for systemd units. It opens on what failed, shows you the journal
 that explains why, and **previews the exact command line of every change before
 running it**.

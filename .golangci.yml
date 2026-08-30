@@ -11,6 +11,12 @@ linters:
   enable:
     - errcheck
     - govet
+    # The tools run privileged commands on someone else's machine, so the
+    # security linter is part of the bar rather than an occasional audit.
+    # The one finding the family expects is G204 inside internal/<backend>/,
+    # where an argv built from user input is the whole point; that line
+    # carries a //nolint saying so.
+    - gosec
     - ineffassign
     - staticcheck
     - unused
