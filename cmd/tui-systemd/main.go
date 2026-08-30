@@ -63,10 +63,10 @@ func parseFlags(args []string, out *os.File) (options, error) {
 		"privilege escalation prefix, e.g. \"sudo -n\" or \"\" to disable")
 	fs.BoolVar(&opts.showVersion, "version", false, "print the version and exit")
 	fs.Usage = func() {
-		fmt.Fprintf(out, "tui-systemd — a terminal UI for systemd units\n\n"+
+		_, _ = fmt.Fprintf(out, "tui-systemd — a terminal UI for systemd units\n\n"+
 			"Usage:\n  tui-systemd [flags]\n\nFlags:\n")
 		fs.PrintDefaults()
-		fmt.Fprintf(out, "\nConfiguration is read from %s, then %s, "+
+		_, _ = fmt.Fprintf(out, "\nConfiguration is read from %s, then %s, "+
 			"then TUI_SYSTEMD_* in the environment.\n",
 			config.SystemPathFor(toolName), config.UserPathFor(toolName))
 	}

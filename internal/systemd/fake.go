@@ -86,6 +86,7 @@ func (f *Fake) apply(cmd runner.Command) (string, error) {
 		switch action {
 		case Start, Restart:
 			if u.Masked() {
+				//nolint:staticcheck // mirrors systemctl's exact message
 				return "", fmt.Errorf(
 					"Failed to %s %s: Unit %s is masked.", action, name, name)
 			}
@@ -94,6 +95,7 @@ func (f *Fake) apply(cmd runner.Command) (string, error) {
 			u.Active, u.Sub = ActiveInactive, "dead"
 		case Reload:
 			if !u.Running() {
+				//nolint:staticcheck // mirrors systemctl's exact message
 				return "", fmt.Errorf(
 					"Failed to reload %s: Job type reload is not applicable "+
 						"for unit %s.", name, name)
@@ -118,6 +120,7 @@ func (f *Fake) apply(cmd runner.Command) (string, error) {
 		}
 		return "", nil
 	}
+	//nolint:staticcheck // mirrors systemctl's exact message
 	return "", fmt.Errorf("Failed to %s %s: Unit %s not found.",
 		action, name, name)
 }
@@ -150,13 +153,12 @@ func (f *Fake) Build(spec ActionSpec, unit string) (runner.Command, error) {
 	return BuildCommand(spec, unit)
 }
 
-// Journal returns a plausible log for a unit.
-func (f *Fake) Journal(_ context.Context, unit string, lines int) (string, error) {
+// Journal returns a plausible log for a unit. The sample logs are fixed
+// excerpts, short enough that the requested backlog size never bites, so the
+// line count is accepted and ignored.
+func (f *Fake) Journal(_ context.Context, unit string, _ int) (string, error) {
 	if unit == "" {
 		return "", fmt.Errorf("no unit selected")
-	}
-	if lines <= 0 {
-		lines = DefaultJournalLines
 	}
 	if body, ok := demoJournals[unit]; ok {
 		return body, nil

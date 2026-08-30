@@ -22,7 +22,9 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26"
+          # go.mod is the single place the family's Go version lives, so a
+          # bump there moves CI with it.
+          go-version-file: go.mod
           check-latest: true
 
       - name: gofmt
@@ -36,6 +38,19 @@ jobs:
 
       - name: go vet
         run: go vet ./...
+
+      # The family's lint bar, shared as .golangci.yml. Nothing is excluded
+      # wholesale: a deliberate finding carries a //nolint saying why.
+      #
+      # Built from source rather than downloaded: golangci-lint refuses a
+      # module whose language version is newer than the Go it was built with,
+      # and no released binary is built with 1.27 yet. goinstall compiles it
+      # with the Go set up above, so the lint tracks the toolchain.
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.13.2
+          install-mode: goinstall
 
       # The family's central promise — the command line you were shown is the
       # one that ran — only holds while a single package can start a process.
@@ -79,7 +94,9 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26"
+          # go.mod is the single place the family's Go version lives, so a
+          # bump there moves CI with it.
+          go-version-file: go.mod
           check-latest: true
 
       - name: build static linux/${{ matrix.goarch }}
@@ -128,7 +145,9 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26"
+          # go.mod is the single place the family's Go version lives, so a
+          # bump there moves CI with it.
+          go-version-file: go.mod
           check-latest: true
 
       - uses: goreleaser/goreleaser-action@v6
