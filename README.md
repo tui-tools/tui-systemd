@@ -2,9 +2,9 @@
 
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/tui-tools/tui-systemd/badge)](https://scorecard.dev/viewer/?uri=github.com/tui-tools/tui-systemd)
 
-> **Beta.** Beta: the family is days old and still changing. Package names,
-> flags and keys may move without notice until 1.0. Pin versions, and report
-> what breaks.
+> **Beta.** The family is days old and still changing. Package names, flags
+> and keys may move without notice until 1.0. Pin versions, and report what
+> breaks.
 
 A terminal UI for systemd units. It opens on what failed, shows you the journal
 that explains why, and **previews the exact command line of every change before
