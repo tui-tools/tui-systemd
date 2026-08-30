@@ -211,13 +211,16 @@ func ParseBlame(out string) []BlameEntry {
 			continue
 		}
 		// The unit is the last field; everything before it is the duration.
-		i := strings.LastIndexByte(line, ' ')
-		if i < 0 {
+		// Split on whitespace rather than on the last space: a tab, or the
+		// carriage return a captured file can carry, separates just as well,
+		// and a unit name read across one is a name `systemctl` cannot find.
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
 			continue
 		}
-		raw := strings.TrimSpace(line[:i])
-		unit := strings.TrimSpace(line[i+1:])
-		if raw == "" || unit == "" || !strings.Contains(unit, ".") {
+		unit := fields[len(fields)-1]
+		raw := strings.TrimSpace(line[:len(line)-len(unit)])
+		if raw == "" || !strings.Contains(unit, ".") {
 			continue
 		}
 		entries = append(entries, BlameEntry{
@@ -263,7 +266,15 @@ func ParseDuration(s string) time.Duration {
 		default:
 			continue
 		}
-		total += time.Duration(value * float64(unit))
+		// A number too large for a Duration is not a startup time. The value
+		// only orders the table, so it saturates rather than wrapping into a
+		// negative that would sort the slowest unit first.
+		nanos := value * float64(unit)
+		if nanos >= float64(math.MaxInt64-total) {
+			total = math.MaxInt64
+			continue
+		}
+		total += time.Duration(nanos)
 	}
 	return total
 }
