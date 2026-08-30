@@ -192,8 +192,13 @@ check "and says so on the mode line" \
   "$bin --demo --report" \
   '^mode: demo'
 
+# The distro and kernel lines are excluded from the host-name search rather
+# than from the promise: they are built from /etc/os-release and from uname's
+# release and machine fields, never from its nodename, and on a guest called
+# "fedora" or "ubuntu" — which is most of them — the host name is a substring
+# of the distribution's own. Everything else in the block is searched.
 check "report leaks neither a home path nor the host name" \
-  "$bin --report | grep -cE '/home/|$(uname -n)' || true" \
+  "$bin --report | grep -vE '^(distro|kernel): ' | grep -cE '/home/|$(uname -n)' || true" \
   '^0$'
 
 # 7. Reads must not need root. This is a design property of the tool, and the
