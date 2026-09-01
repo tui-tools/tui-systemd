@@ -3,6 +3,8 @@ package systemd
 import (
 	"context"
 	"fmt"
+	"os"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -19,6 +21,12 @@ type Fake struct {
 	units  []Unit
 	timers []Timer
 	blame  []BlameEntry
+	// fragments and dropIns are the sample machine's unit files, keyed by
+	// unit name. They are what `systemctl cat` shows and what the authoring
+	// screens change: a demo that could not create a unit and then edit it
+	// would not be showing the feature.
+	fragments map[string]string
+	dropIns   map[string]string
 	// run records and answers the commands, and is what the preview goes
 	// through, so the demo shows the same "sudo -n systemctl …" a real run
 	// would.
@@ -30,9 +38,11 @@ type Fake struct {
 // NewFake returns a Fake preloaded with a realistic machine.
 func NewFake() *Fake {
 	f := &Fake{
-		units:  demoUnits(),
-		timers: demoTimers(),
-		blame:  demoBlame(),
+		units:     demoUnits(),
+		timers:    demoTimers(),
+		blame:     demoBlame(),
+		fragments: map[string]string{},
+		dropIns:   demoDropIns(),
 	}
 	f.run = &runner.Fake{Prefix: "sudo -n", Hook: f.apply}
 	return f
@@ -70,14 +80,25 @@ func (f *Fake) apply(cmd runner.Command) (string, error) {
 	if len(cmd.Argv) < 2 {
 		return "", fmt.Errorf("systemd: malformed command %q", cmd)
 	}
+	if cmd.Argv[0] == "install" {
+		return f.install(cmd.Argv[1:])
+	}
 	action := Action(cmd.Argv[1])
 	if action == DaemonReload {
 		return "", nil
 	}
-	if len(cmd.Argv) < 3 {
+	// `enable --now` is the one action that carries a flag, and the unit is
+	// still the last argument.
+	name := cmd.Argv[len(cmd.Argv)-1]
+	enableNow := false
+	for _, arg := range cmd.Argv[2:] {
+		if arg == "--now" {
+			enableNow = true
+		}
+	}
+	if len(cmd.Argv) < 3 || strings.HasPrefix(name, "-") {
 		return "", fmt.Errorf("systemd: %s needs a unit", action)
 	}
-	name := cmd.Argv[2]
 	for i := range f.units {
 		if f.units[i].Name != name {
 			continue
@@ -102,6 +123,12 @@ func (f *Fake) apply(cmd runner.Command) (string, error) {
 			}
 		case Enable:
 			u.FileState = "enabled"
+			if enableNow && !u.Masked() {
+				u.Active, u.Sub = ActiveActive, "running"
+				if u.Type() == "timer" {
+					u.Sub = "waiting"
+				}
+			}
 			return fmt.Sprintf("Created symlink "+
 				"/etc/systemd/system/multi-user.target.wants/%s -> "+
 				"/usr/lib/systemd/system/%s.", name, name), nil
@@ -123,6 +150,120 @@ func (f *Fake) apply(cmd runner.Command) (string, error) {
 	//nolint:staticcheck // mirrors systemctl's exact message
 	return "", fmt.Errorf("Failed to %s %s: Unit %s not found.",
 		action, name, name)
+}
+
+// install applies a confirmed `install` command to the sample machine.
+//
+// The content comes from the staged file on disk, the same file the real
+// command would copy, so the demo applies exactly what the user reviewed in
+// the diff rather than a second rendering of it.
+func (f *Fake) install(args []string) (string, error) {
+	if len(args) > 0 && args[0] == "-d" {
+		// Creating the drop-in directory: the sample machine has no
+		// directories, so there is nothing to do and nothing to report.
+		return "", nil
+	}
+	if len(args) < 4 || args[0] != "-m" {
+		return "", fmt.Errorf("systemd: malformed install command %v", args)
+	}
+	source, destination := args[2], args[3]
+	body, err := os.ReadFile(source) //nolint:gosec // the path was staged by this package
+	if err != nil {
+		return "", fmt.Errorf("systemd: the staged file is gone: %w", err)
+	}
+	content := string(body)
+
+	if name, ok := strings.CutPrefix(destination, UnitDir+"/"); ok &&
+		!strings.Contains(name, "/") {
+		f.fragments[name] = content
+		f.addUnit(name, content)
+		return "", nil
+	}
+	dir, file := path.Split(destination)
+	unit := strings.TrimSuffix(strings.TrimSuffix(dir, "/"), ".d")
+	unit = strings.TrimPrefix(unit, UnitDir+"/")
+	if file != DropInFile || !ValidUnitName(unit) {
+		return "", fmt.Errorf("systemd: %s is not a path this tool writes", destination)
+	}
+	f.dropIns[unit] = content
+	return "", nil
+}
+
+// addUnit puts a freshly installed unit in the list, so the demo shows what
+// was just created without having to invent a reload.
+func (f *Fake) addUnit(name, content string) {
+	for i := range f.units {
+		if f.units[i].Name == name {
+			return
+		}
+	}
+	description := name
+	for _, line := range strings.Split(content, "\n") {
+		if value, ok := strings.CutPrefix(line, "Description="); ok {
+			description = value
+			break
+		}
+	}
+	f.units = append(f.units, Unit{
+		Name: name, Load: "loaded", Active: ActiveInactive, Sub: "dead",
+		FileState: "disabled", Description: description,
+	})
+}
+
+// Cat renders the unit the way `systemctl cat` does: the fragment, then every
+// drop-in, each introduced by the comment naming its path.
+func (f *Fake) Cat(_ context.Context, unit string) (string, error) {
+	if !ValidUnitName(unit) {
+		return "", fmt.Errorf("%q is not a unit name", unit)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	known := false
+	var found Unit
+	for _, u := range f.units {
+		if u.Name == unit {
+			known, found = true, u
+			break
+		}
+	}
+	if !known {
+		//nolint:staticcheck // mirrors systemctl's exact message
+		return "", fmt.Errorf("No files found for %s.", unit)
+	}
+
+	fragment, ok := f.fragments[unit]
+	directory := UnitDir
+	if !ok {
+		fragment, directory = demoFragment(found), "/usr/lib/systemd/system"
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "# %s/%s\n%s", directory, unit, fragment)
+	if dropIn, ok := f.dropIns[unit]; ok {
+		fmt.Fprintf(&b, "\n# %s\n%s", DropInPathFor(unit), dropIn)
+	}
+	return b.String(), nil
+}
+
+// demoVerifier stands in for `systemd-analyze verify`. It says the check did
+// not run rather than claiming systemd accepted a file it never saw: the demo
+// mirrors the real command lines, it does not mirror a verdict.
+func demoVerifier() Verifier {
+	return func(_ context.Context, cmd runner.Command) (string, string, error) {
+		return cmd.String(), "", fmt.Errorf(
+			"the demo does not run systemd-analyze, so the file was not checked")
+	}
+}
+
+// BuildDropIn plans a drop-in against the sample machine, through exactly the
+// same renderer, stager and command builders the real backend uses.
+func (f *Fake) BuildDropIn(ctx context.Context, req DropInRequest) (WritePlan, error) {
+	return DropInPlan(ctx, demoVerifier(), req)
+}
+
+// BuildNewUnit plans a new service or timer against the sample machine.
+func (f *Fake) BuildNewUnit(ctx context.Context, req NewUnitRequest) (WritePlan, error) {
+	return NewUnitPlan(ctx, demoVerifier(), req)
 }
 
 // Units returns the sample unit list.
@@ -255,6 +396,40 @@ func demoBlame() []BlameEntry {
 		{Raw: "764ms", Duration: ParseDuration("764ms"), Unit: "systemd-resolved.service"},
 		{Raw: "311ms", Duration: ParseDuration("311ms"), Unit: "cron.service"},
 	}
+}
+
+// demoDropIns is the drop-in the sample machine already carries. One unit has
+// one, so the editor opens on an existing file — the case where the diff has
+// two sides — without anyone having to write one first.
+func demoDropIns() map[string]string {
+	return map[string]string{
+		"nginx.service": dropInHeader + "\n[Service]\nRestart=on-failure\nRestartSec=5s\n",
+	}
+}
+
+// demoFragment invents the unit file of a sample unit, so `systemctl cat` and
+// the drop-in editor have something to show for every unit in the list rather
+// than only for the ones a canned file was written for.
+func demoFragment(u Unit) string {
+	var b strings.Builder
+	b.WriteString("[Unit]\n")
+	fmt.Fprintf(&b, "Description=%s\n", u.Description)
+	switch u.Type() {
+	case "timer":
+		b.WriteString("\n[Timer]\nOnCalendar=daily\nPersistent=true\n" +
+			"\n[Install]\nWantedBy=timers.target\n")
+	case "socket":
+		b.WriteString("\n[Socket]\nListenStream=22\nAccept=no\n" +
+			"\n[Install]\nWantedBy=sockets.target\n")
+	case "service":
+		b.WriteString("After=network.target\n\n[Service]\nType=simple\n")
+		fmt.Fprintf(&b, "ExecStart=/usr/bin/env %s\n",
+			strings.TrimSuffix(u.Name, ".service"))
+		b.WriteString("\n[Install]\nWantedBy=multi-user.target\n")
+	default:
+		b.WriteString("\n# this unit type carries no section the demo models\n")
+	}
+	return b.String()
 }
 
 // demoJournals holds the logs worth reading in the demo: the two failures, so

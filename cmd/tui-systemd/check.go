@@ -49,6 +49,24 @@ type checkReport struct {
 	// Journal records one real journal read, so the smoke test covers that
 	// path too without needing a second invocation.
 	Journal journalProbe `json:"journal"`
+	// UnitFile records one real `systemctl cat`, which is the read the
+	// authoring screens open on: the editor seeds itself from it and the diff
+	// is measured against it, so a machine where it fails is a machine where
+	// the editor would refuse to open.
+	UnitFile unitFileProbe `json:"unit_file"`
+}
+
+// unitFileProbe is the outcome of reading one unit's files.
+type unitFileProbe struct {
+	// Unit is the unit that was read; empty when the machine had no service
+	// to read, which is not a failure.
+	Unit string `json:"unit"`
+	// Files is how many files systemd concatenated: the fragment, and any
+	// drop-ins. Bytes describes what came back.
+	Files int `json:"files"`
+	Bytes int `json:"bytes"`
+	// Error is why the read failed, when it did.
+	Error string `json:"error,omitempty"`
 }
 
 // journalProbe is the outcome of reading one unit's log.
@@ -116,10 +134,37 @@ func runCheck(backend systemd.Backend, backendCompat compat.Result,
 	}
 
 	report.Journal = probeJournal(ctx, backend, units)
+	report.UnitFile = probeUnitFile(ctx, backend, units)
 
 	encoder := json.NewEncoder(out)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(report)
+}
+
+// probeUnitFile reads the files of the first service it finds. Like the
+// journal probe it picks a unit from the machine's own list rather than naming
+// one, because the three distros in the lab agree on no single service name.
+func probeUnitFile(ctx context.Context, backend systemd.Backend,
+	units []systemd.Unit) unitFileProbe {
+	var target string
+	for _, unit := range units {
+		if unit.Type() == "service" && !unit.Masked() &&
+			systemd.ValidUnitName(unit.Name) {
+			target = unit.Name
+			break
+		}
+	}
+	if target == "" {
+		return unitFileProbe{}
+	}
+	text, err := backend.Cat(ctx, target)
+	probe := unitFileProbe{Unit: target, Bytes: len(text)}
+	if err != nil {
+		probe.Error = err.Error()
+		return probe
+	}
+	probe.Files = len(systemd.ParseCat(text))
+	return probe
 }
 
 // probeJournal reads the log of the first active service it finds. Picking a

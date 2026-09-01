@@ -168,6 +168,36 @@ else
   fail=$((fail + 1))
 fi
 
+# 7. The unit-file read path works. It is the read the authoring screens open
+#    on: the drop-in editor seeds itself from `systemctl cat` and measures its
+#    diff against it, so a machine where this comes back empty is a machine
+#    where the editor could not be trusted to show what it is changing.
+cat_bytes=$(sed -n '/"unit_file"/,/}/p' <<<"$report" \
+  | sed -n 's/.*"bytes": *\([0-9]*\).*/\1/p' | head -1)
+cat_unit=$(sed -n '/"unit_file"/,/}/p' <<<"$report" \
+  | sed -n 's/.*"unit": *"\([^"]*\)".*/\1/p' | head -1)
+if [[ ${cat_bytes:-0} -gt 0 ]]; then
+  echo "PASS  unit file read ($cat_unit, $cat_bytes bytes)"
+  pass=$((pass + 1))
+else
+  echo "FAIL  systemctl cat returned nothing for ${cat_unit:-<no unit>}"
+  sed -n '/"unit_file"/,/}/p' <<<"$report" | sed 's/^/      | /'
+  fail=$((fail + 1))
+fi
+
+# 8. The syntax check the authoring screens depend on is available and
+#    unprivileged. Without it a write is still offered, but the confirm dialog
+#    has to say the file was never read — so whether it works here is part of
+#    what a compatibility result means.
+if command -v systemd-analyze >/dev/null 2>&1; then
+  check "systemd-analyze verify runs unprivileged" \
+    'systemd-analyze verify /usr/lib/systemd/system/basic.target 2>&1; echo "exit=$?"' \
+    '^exit=0$'
+else
+  echo "PASS  systemd-analyze is absent, so the editor would say the file was unchecked"
+  pass=$((pass + 1))
+fi
+
 # --- the report block ------------------------------------------------------
 #
 # --report is read-only and unprivileged, so it is smoked without sudo: a user
@@ -201,7 +231,7 @@ check "report leaks neither a home path nor the host name" \
   "$bin --report | grep -vE '^(distro|kernel): ' | grep -cE '/home/|$(uname -n)' || true" \
   '^0$'
 
-# 7. Reads must not need root. This is a design property of the tool, and the
+# 9. Reads must not need root. This is a design property of the tool, and the
 #    only way to notice it regressing is to assert it on a real machine.
 check "reads work as an unprivileged user" \
   "$bin --sudo '' --check" \
