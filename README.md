@@ -8,8 +8,8 @@
 > breaks.
 
 A terminal UI for systemd units. It opens on what failed, shows you the journal
-that explains why, and **previews the exact command line of every change before
-running it**.
+that explains why, writes the drop-in or the unit file you need, and **previews
+the exact command line of every change before running it**.
 
 ![Unit list](docs/screenshots/tui-systemd-main.png)
 
@@ -272,6 +272,55 @@ sudo.
 the UI hands the same value to the preview and to the runner, so what you read
 is what executes.
 
+## Writing unit files
+
+`c` shows the unit as systemd assembles it — the fragment and every drop-in,
+each named by its path, which is the only honest answer to "where is this
+property set".
+
+![The unit file](docs/screenshots/tui-systemd-cat.png)
+
+`E` opens a guided editor over a **closed set of properties**: `Restart`,
+`RestartSec`, `MemoryMax`, `CPUQuota`, `Environment`, `Nice`, and `OnCalendar`
+on a timer. Each is offered with the values systemd accepts — a list where the
+value is a choice, a checked pattern where it is not — so a typo cannot reach
+`/etc`. The editor writes one file and rewrites it whole:
+
+    /etc/systemd/system/<unit>.d/90-tui-systemd.conf
+
+![The drop-in editor](docs/screenshots/tui-systemd-edit.png)
+
+`n` creates a unit from a vetted template: a service, or a timer and the
+service it starts. The program in `ExecStart` must be an absolute path, and
+**an existing unit is never overwritten** — edit that one with `E` instead.
+
+![Creating a unit](docs/screenshots/tui-systemd-new.png)
+
+Both take the same road to disk, and it is the one thing to understand about
+this feature:
+
+1. **Render** the whole file. Nothing is appended, so a property can never end
+   up in the file twice with systemd quietly taking the last one.
+2. **Stage** it in a private temporary directory, beside a copy of everything
+   systemd reads for that unit — the fragment, and the drop-ins somebody else
+   shipped.
+3. **Check** it with `systemd-analyze verify`, before you are asked anything.
+   `verify` warns about a value it cannot parse and still exits 0, so any
+   output at all counts as a refusal: a line systemd would silently ignore is a
+   line you thought you were setting.
+4. **Review** the unified diff and the exact command lines.
+5. **Install** with `install -m 644` — the mode is set in the same call, so
+   there is no window where the file exists with the wrong one — and
+   `systemctl daemon-reload`.
+
+Restarting the unit afterwards, or `enable --now` on a unit you just created,
+is a **second confirmation**: writing a file and taking a service down are
+different decisions, and they are asked separately.
+
+Under `--demo` the whole flow works against the sample machine, with the same
+command lines, and says plainly that the file was not checked — the demo does
+not run `systemd-analyze`, and it does not pretend to.
+
 ## The journal, where you already are
 
 Press `j` on a unit to read its log without leaving the tool. `f` follows it,
@@ -304,6 +353,9 @@ boot slow.
 | `m` / `M` | Mask / unmask the selected unit |
 | `d` | Reload the systemd manager (`daemon-reload`) |
 | `j` / `enter` | Journal for the selected unit |
+| `c` | Show the unit file and its drop-ins (`systemctl cat`) |
+| `E` | Override properties of the selected unit in a drop-in |
+| `n` | Create a service, or a timer and the service it starts |
 | `f` | In the journal: follow, re-reading every 2s |
 | `t` | Timers |
 | `b` | Boot times, slowest first |
@@ -329,6 +381,10 @@ navigation: `j` for journal is worth more here than `j` for down, and `k`,
 - Start, stop, restart, reload, enable, disable, mask and unmask a unit, and
   reload the systemd manager, each behind a command preview and a confirmation.
 - Read a unit's journal, and follow it.
+- Show the unit file and its drop-ins (`c`).
+- Override a closed set of properties through a generated drop-in (`E`), and
+  create a service or a timer from a template (`n`) — each staged, checked with
+  `systemd-analyze verify`, diffed and confirmed before anything is installed.
 - List timers with when they fire next and when they last fired.
 - Show the slowest units of the last boot.
 - Follow the active Omarchy theme, and respect `NO_COLOR`.
@@ -336,12 +392,18 @@ navigation: `j` for journal is worth more here than `j` for down, and `k`,
 ## What v0.1 cannot do
 
 - **System units only.** No `--user` scope yet.
-- **No `systemctl edit`**, no drop-in editing, no unit file viewing.
+- **No free-text unit editing.** The drop-in editor covers seven properties and
+  the templates cover a service and a timer; anything else is still `systemctl
+  edit` in `$EDITOR`.
+- **No deleting.** A unit this tool wrote is removed with `rm` and a
+  `daemon-reload`, deliberately: this tool creates and edits, it does not
+  delete.
 - **No dependency tree**, no `systemd-analyze critical-chain` or plots.
 - **No live status detail** beyond the journal: no cgroup, no main PID, no
   memory or task counts.
-- No `--now` combinations: enable and start are separate keys, and separate
-  confirmations.
+- No `--now` combinations from the action keys: enable and start stay separate
+  keys with separate confirmations. A unit you just created is the one place
+  `enable --now` is offered, as its own second confirmation.
 - The journal is read-only and unfiltered; there is no priority or time filter.
 - **The timers view needs systemd 250 or newer**, which is when
   `list-timers --output=json` landed. The unit list works on older systemd.
@@ -410,11 +472,19 @@ in the confirm dialog and handed back to the
 [kit runner](https://github.com/tui-tools/tui-kit#the-contract-preview-confirm-run),
 which resolves the binary and the privilege prefix.
 
-Three binaries are involved, each with its own runner and its own failure
-message: `systemctl` for the list and the actions, `journalctl` for the log
-panel, `systemd-analyze` for the boot view. Only `systemctl` escalates, and only
-for actions. A host missing `journalctl` or `systemd-analyze` still gets the unit
-list, and the affected view says what is missing.
+Four binaries are involved, each with its own runner and its own failure
+message: `systemctl` for the list, the actions and `cat`; `journalctl` for the
+log panel; `systemd-analyze` for the boot view and for the syntax check; and
+`install` for putting a staged file in `/etc/systemd/system`. Only `systemctl`
+and `install` escalate, and only to change something — the syntax check is a
+read, and a check that needed a password would be a check nobody ran. A host
+missing `journalctl`, `systemd-analyze` or `install` still gets the unit list,
+and the affected view says what is missing.
+
+The file-writing path is ported from
+[tui-ssh](https://github.com/tui-tools/tui-ssh), which edits `sshd_config` the
+same way: render, stage, let the daemon's own parser read it, install, reload.
+The two tools show a file change identically on purpose.
 
 Both list readers use `--output=json` rather than the text tables. The tables
 are column-aligned, truncate to the terminal width and right-align their time
@@ -467,6 +537,14 @@ is committed so the bug cannot come back quietly.
   twice, and neither does this tool beyond its one confirmation.
 - The tool re-reads the unit list after every change, so what you see is what
   systemd reports, not what the tool assumed.
+- **A drop-in is world-readable**, like every unit file. `Environment=` is
+  there for a log level, not for a password or a token — point the unit at a
+  file with `EnvironmentFile=` for those.
+- The editor refuses a **masked** unit (a drop-in for it is read by nothing)
+  and a **transient** one (it lives in `/run` and disappears with the manager
+  that made it).
+- `daemon-reload` makes systemd read the new file; it does not make a running
+  unit adopt it. That is what the restart step is for, and it says so.
 
 ## Contributing
 

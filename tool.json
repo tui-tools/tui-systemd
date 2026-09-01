@@ -3,7 +3,7 @@
   "name": "tui-systemd",
   "binary": "tui-systemd",
   "tagline": "systemd units: what failed, why, and every action previewed",
-  "description": "A terminal UI for systemd. It opens on what failed — failed units sort first, always — and puts the journal that explains why one key away. Timers show what is scheduled and when it last fired; the boot view shows what made the last boot slow.\n\nThe unit list merges `list-units --all` with `list-unit-files`, so a unit that is installed but has never started is visible too. Every read works as an ordinary user, so the tool opens instantly and without a password; only an action escalates, and only behind a confirm dialog showing the exact `systemctl` command line.\n\nRun `tui-systemd --demo` for a sample machine with a couple of interesting failures. Nothing touches your system.",
+  "description": "A terminal UI for systemd. It opens on what failed — failed units sort first, always — and puts the journal that explains why one key away. Timers show what is scheduled and when it last fired; the boot view shows what made the last boot slow.\n\nIt also writes. `c` shows the unit file as systemd assembles it. `E` opens a guided editor over a closed set of properties — Restart, RestartSec, MemoryMax, CPUQuota, Environment, Nice, and OnCalendar on a timer — and renders the whole drop-in at `/etc/systemd/system/<unit>.d/90-tui-systemd.conf`. `n` creates a service, or a timer and the service it starts, from a vetted template. Every write is staged in a temporary directory, read by `systemd-analyze verify` before you are asked anything, shown as a unified diff, and only then installed with `install -m 644` and a `daemon-reload`.\n\nEvery read works as an ordinary user, so the tool opens instantly and without a password; only a change escalates, and only behind a confirm dialog showing the exact command lines.\n\nRun `tui-systemd --demo` for a sample machine with a couple of interesting failures. Nothing touches your system.",
   "category": "systemd",
   "homepage": "https://github.com/tui-tools/tui-systemd",
   "repo": "https://github.com/tui-tools/tui-systemd",
@@ -28,6 +28,18 @@
       "caption": "A unit's journal, read without leaving the tool"
     },
     {
+      "path": "docs/screenshots/tui-systemd-edit.png",
+      "caption": "The drop-in editor: a closed set of properties, with the values systemd accepts"
+    },
+    {
+      "path": "docs/screenshots/tui-systemd-cat.png",
+      "caption": "The unit file and its drop-ins, each named by its path"
+    },
+    {
+      "path": "docs/screenshots/tui-systemd-new.png",
+      "caption": "Creating a unit from a vetted template, service or timer"
+    },
+    {
       "path": "docs/screenshots/tui-systemd-failed.png",
       "caption": "The failed-only filter, one tab away"
     },
@@ -48,6 +60,18 @@
     {
       "key": "j / enter",
       "action": "Journal for the selected unit"
+    },
+    {
+      "key": "c",
+      "action": "Show the unit file and its drop-ins (systemctl cat)"
+    },
+    {
+      "key": "E",
+      "action": "Override properties of the selected unit in a drop-in"
+    },
+    {
+      "key": "n",
+      "action": "Create a service, or a timer and the service it starts"
     },
     {
       "key": "f",
@@ -200,7 +224,7 @@
     }
   },
   "security": {
-    "needs_sudo": "Only actions escalate: start, stop, restart, reload, enable, disable, mask, unmask and `daemon-reload`. Every read — the unit list, the journal, timers and boot times — works as an ordinary user. Escalation goes through `sudo -n`, which never prompts.",
+    "needs_sudo": "Only changes escalate: the systemctl actions, `daemon-reload`, and the `install` that copies a staged unit file into /etc/systemd/system. Reads never do, `systemctl cat` and `systemd-analyze verify` included. Escalation goes through `sudo -n`, which never prompts.",
     "preview_before_run": true,
     "no_daemon": true,
     "no_network": true,
