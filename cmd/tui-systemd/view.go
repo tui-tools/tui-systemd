@@ -36,6 +36,12 @@ func (a *app) View() string {
 		return placeCenter(
 			ui.HelpScreen(a.theme, "tui-systemd — keys", helpKeys(), a.width),
 			a.width, a.height)
+	case modeForm:
+		return a.form.view(a.theme, a.width, a.height)
+	case modePicker:
+		return a.picker.View(a.theme, a.width, a.height)
+	case modeCat:
+		return a.catView()
 	case modeJournal:
 		return a.journalView()
 	case modeTimers:
@@ -301,6 +307,61 @@ func (a *app) journalView() string {
 	return a.screen(header, body, hints, a.journalUnit+"  ·  esc to go back")
 }
 
+// catView renders the unit file as systemd assembles it.
+//
+// The path comments systemctl prints between the files are what make the view
+// worth having — a property is wherever the last file that set it says it is —
+// so they are coloured rather than dimmed away.
+func (a *app) catView() string {
+	t := a.theme
+	facts := []ui.Fact{}
+	if unit, ok := a.unitNamed(a.catUnit); ok {
+		style := a.stateStyle(unit)
+		facts = append(facts,
+			ui.Fact{Label: "state", Value: unit.Active, Style: &style},
+			ui.Fact{Label: "at boot", Value: bootLabel(unit)})
+	}
+	header := ui.Header{
+		Title:    a.catUnit,
+		Subtitle: "unit file and drop-ins  ·  systemctl cat",
+		Facts:    facts,
+	}.Render(t, a.width)
+
+	height := a.listHeight() + 1
+	var body string
+	switch {
+	case a.loading && a.catText == "":
+		body = ui.EmptyState(t, "reading the unit files…", a.width, height)
+	case a.catText == "":
+		body = ui.EmptyState(t, "systemd has no files for this unit", a.width, height)
+	default:
+		lines := strings.Split(strings.TrimRight(a.catText, "\n"), "\n")
+		start := min(a.catLine, max(len(lines)-1, 0))
+		end := min(start+height, len(lines))
+		rendered := make([]string, 0, height)
+		for _, line := range lines[start:end] {
+			style := t.Row
+			if strings.HasPrefix(line, "# /") {
+				style = t.Row.Foreground(t.Accent.GetForeground())
+			}
+			rendered = append(rendered,
+				style.Width(a.width).Render(ui.Truncate(line, a.width-2)))
+		}
+		for len(rendered) < height {
+			rendered = append(rendered, t.Row.Width(a.width).Render(""))
+		}
+		body = strings.Join(rendered, "\n")
+	}
+
+	hints := []ui.KeyHint{
+		{Key: "E", Desc: "edit a property"},
+		{Key: "r", Desc: "re-read"},
+		{Key: "esc", Desc: "back"},
+		{Key: "?", Desc: "help"},
+	}
+	return a.screen(header, body, hints, a.catUnit+"  ·  esc to go back")
+}
+
 // timersView renders the timer list.
 func (a *app) timersView() string {
 	header := ui.Header{
@@ -451,6 +512,9 @@ func (a *app) shortHelpKeys() []ui.KeyHint {
 		{Key: "r", Desc: "restart"},
 		{Key: "e", Desc: "enable"},
 		{Key: "j", Desc: "journal"},
+		{Key: "c", Desc: "unit file"},
+		{Key: "E", Desc: "edit"},
+		{Key: "n", Desc: "new"},
 	}
 	if a.hasTimers() {
 		hints = append(hints, ui.KeyHint{Key: "t", Desc: "timers"})
@@ -503,6 +567,9 @@ func helpKeys() []ui.KeyHint {
 	return append(hints,
 		ui.KeyHint{Key: "", Desc: ""},
 		ui.KeyHint{Key: "j / enter", Desc: "journal for the selected unit"},
+		ui.KeyHint{Key: "c", Desc: "the unit file and its drop-ins (systemctl cat)"},
+		ui.KeyHint{Key: "E", Desc: "override properties of the selected unit"},
+		ui.KeyHint{Key: "n", Desc: "create a service, or a timer and its service"},
 		ui.KeyHint{Key: "f", Desc: "in the journal: follow, re-reading every 2s"},
 		ui.KeyHint{Key: "t / b", Desc: "timers / boot times, slowest first"},
 		ui.KeyHint{Key: "ctrl+r", Desc: "re-read the current view"},
@@ -510,5 +577,6 @@ func helpKeys() []ui.KeyHint {
 		ui.KeyHint{Key: "", Desc: ""},
 		ui.KeyHint{Key: "note", Desc: "j opens the journal, so this list moves with the arrows"},
 		ui.KeyHint{Key: "", Desc: "every change is previewed and confirmed first"},
+		ui.KeyHint{Key: "", Desc: "a file is staged and read by systemd before it reaches /etc"},
 	)
 }

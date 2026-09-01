@@ -16,14 +16,20 @@ import (
 // view. Only systemctl escalates, and only for actions — every read in this
 // tool works as an unprivileged user, which is why the tool opens instantly
 // and without a password.
+// A fourth binary joined them with unit authoring: `install`, which is how a
+// staged file reaches /etc with its mode set in the same call. It escalates,
+// like systemctl's actions and for the same reason.
 type Real struct {
 	systemctl *runner.Runner
 	journal   *runner.Runner
 	analyze   *runner.Runner
-	// journalErr and analyzeErr hold why an optional binary is unusable, so
-	// the matching view can say so instead of silently showing nothing.
+	install   *runner.Runner
+	// journalErr, analyzeErr and installErr hold why an optional binary is
+	// unusable, so the matching view can say so instead of silently showing
+	// nothing.
 	journalErr error
 	analyzeErr error
+	installErr error
 }
 
 // readTimeout bounds a read. It is generous because `list-units` on a busy
@@ -84,7 +90,41 @@ func New(sudoPrefix []string) (*Real, error) {
 		Timeout:         readTimeout,
 		PrivilegedReads: &unprivileged,
 	})
+	// `install` writes into /etc/systemd/system, so it escalates the same way
+	// an action does. It is only needed by the authoring screens: a machine
+	// without it still reads and still acts.
+	r.install, r.installErr = runner.New(runner.Options{
+		Bin:         "install",
+		SearchPaths: []string{"/usr/bin/install", "/bin/install"},
+		SudoPrefix:  sudoPrefix,
+		Timeout:     actionTimeout,
+	})
 	return r, nil
+}
+
+// runnerFor picks the runner that owns a command. The preview and the
+// execution go through the same choice, which is what keeps the promise the
+// confirm dialog makes: the line on the dialog is the line that runs.
+func (r *Real) runnerFor(cmd runner.Command) (*runner.Runner, error) {
+	if len(cmd.Argv) == 0 {
+		return nil, fmt.Errorf("systemd: empty command")
+	}
+	switch cmd.Argv[0] {
+	case "install":
+		if r.installErr != nil {
+			return nil, fmt.Errorf("writing a unit file needs install(1): %w",
+				r.installErr)
+		}
+		return r.install, nil
+	case "systemd-analyze":
+		if r.analyzeErr != nil {
+			return nil, fmt.Errorf("checking a unit file needs systemd-analyze: %w",
+				r.analyzeErr)
+		}
+		return r.analyze, nil
+	default:
+		return r.systemctl, nil
+	}
 }
 
 // Name identifies the backend.
@@ -94,11 +134,23 @@ func (r *Real) Name() string { return "systemd" }
 func (r *Real) Describe() string { return r.systemctl.Describe() }
 
 // Preview renders the exact command line Run will execute.
-func (r *Real) Preview(cmd runner.Command) string { return r.systemctl.Preview(cmd) }
+func (r *Real) Preview(cmd runner.Command) string {
+	target, err := r.runnerFor(cmd)
+	if err != nil {
+		// A binary that cannot be resolved still has a command line worth
+		// showing; the error surfaces when the command is built or run.
+		return cmd.String()
+	}
+	return target.Preview(cmd)
+}
 
 // Run executes a previewed command.
 func (r *Real) Run(ctx context.Context, cmd runner.Command) (string, error) {
-	return r.systemctl.Run(ctx, cmd)
+	target, err := r.runnerFor(cmd)
+	if err != nil {
+		return "", err
+	}
+	return target.Run(ctx, cmd)
 }
 
 // Units reads the runtime list and the unit-file list and merges them.
@@ -167,6 +219,48 @@ func (r *Real) Journal(ctx context.Context, unit string, lines int) (string, err
 	}
 	return r.journal.Read(ctx, "journalctl", "-u", unit,
 		"-n", fmt.Sprint(lines), "--no-pager")
+}
+
+// Cat reads the unit as systemd assembles it. It is an unprivileged read, like
+// every other read in this tool.
+func (r *Real) Cat(ctx context.Context, unit string) (string, error) {
+	argv, err := BuildCat(unit)
+	if err != nil {
+		return "", err
+	}
+	return r.systemctl.Read(ctx, argv...)
+}
+
+// verifier runs the plan's syntax check through the systemd-analyze runner,
+// which never escalates: verify parses files and prints, and a check that
+// needed a password would be a check nobody ran.
+func (r *Real) verifier() Verifier {
+	return func(ctx context.Context, cmd runner.Command) (string, string, error) {
+		if r.analyzeErr != nil {
+			return cmd.String(), "", fmt.Errorf(
+				"checking a unit file needs systemd-analyze: %w", r.analyzeErr)
+		}
+		out, err := r.analyze.Read(ctx, cmd.Argv...)
+		return r.analyze.Preview(cmd), out, err
+	}
+}
+
+// BuildDropIn stages, checks and plans the drop-in for a unit.
+func (r *Real) BuildDropIn(ctx context.Context, req DropInRequest) (WritePlan, error) {
+	if r.installErr != nil {
+		return WritePlan{}, fmt.Errorf("writing a unit file needs install(1): %w",
+			r.installErr)
+	}
+	return DropInPlan(ctx, r.verifier(), req)
+}
+
+// BuildNewUnit stages, checks and plans a new service or timer.
+func (r *Real) BuildNewUnit(ctx context.Context, req NewUnitRequest) (WritePlan, error) {
+	if r.installErr != nil {
+		return WritePlan{}, fmt.Errorf("writing a unit file needs install(1): %w",
+			r.installErr)
+	}
+	return NewUnitPlan(ctx, r.verifier(), req)
 }
 
 // Build turns an action into a previewable command.

@@ -214,6 +214,18 @@ type Backend interface {
 	Blame(ctx context.Context, limit int) ([]BlameEntry, error)
 	// Journal returns the last n lines of a unit's log.
 	Journal(ctx context.Context, unit string, lines int) (string, error)
+	// Cat returns the unit as systemd assembles it: its fragment and every
+	// drop-in, each introduced by the comment naming its path.
+	Cat(ctx context.Context, unit string) (string, error)
+
+	// BuildDropIn renders the drop-in for a unit, has systemd's own parser
+	// read it, and returns the plan that installs it. It stages and checks,
+	// and it changes nothing: only Run does.
+	BuildDropIn(ctx context.Context, req DropInRequest) (WritePlan, error)
+	// BuildNewUnit renders a new service, or a timer and the service it
+	// starts, checks them the same way and returns the plan that installs
+	// them. It refuses a name that already exists.
+	BuildNewUnit(ctx context.Context, req NewUnitRequest) (WritePlan, error)
 
 	// Build turns an action on a unit into a previewable command. A Manager
 	// action ignores the unit name.
