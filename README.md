@@ -26,7 +26,7 @@ the exact command line of every change before running it**.
 ### Arch Linux
 
 Needs the tui-tools repository, which is a [one-time
-setup](https://tui-tools.github.io/install/).
+setup](https://tui.tools/install/).
 
 The one-liner detects the distribution and adds the repository and its signing
 key:
@@ -60,7 +60,7 @@ Upgrades then arrive with the rest of your system updates.
 ### Debian and Ubuntu
 
 Needs the tui-tools repository, which is a [one-time
-setup](https://tui-tools.github.io/install/).
+setup](https://tui.tools/install/).
 
 The one-liner detects the distribution and adds the repository and its signing
 key:
@@ -93,7 +93,7 @@ Upgrades then arrive with the rest of your system updates.
 ### Fedora and RHEL
 
 Needs the tui-tools repository, which is a [one-time
-setup](https://tui-tools.github.io/install/).
+setup](https://tui.tools/install/).
 
 The one-liner detects the distribution and adds the repository and its signing
 key:
@@ -152,7 +152,7 @@ The -bin package installs the released static binary.
 ### openSUSE — coming soon
 
 Needs the tui-tools repository, which is a [one-time
-setup](https://tui-tools.github.io/install/).
+setup](https://tui.tools/install/).
 
 ```sh
 sudo zypper install tui-systemd
@@ -168,6 +168,8 @@ against it before installing:
 ```sh
 sha256sum -c checksums.txt --ignore-missing
 ```
+
+Website: https://tui.tools/tools/tui-systemd/
 <!-- install:end -->
 
 One static binary, no daemon, no state of its own.
