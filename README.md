@@ -3,9 +3,11 @@
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/tui-tools/tui-systemd/badge)](https://scorecard.dev/viewer/?uri=github.com/tui-tools/tui-systemd)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14368/badge)](https://www.bestpractices.dev/projects/14368)
 
+<!-- stability:start -->
 > **Beta.** The family is days old and still changing. Package names, flags
 > and keys may move without notice until 1.0. Pin versions, and report what
 > breaks.
+<!-- stability:end -->
 
 A terminal UI for systemd units. It opens on what failed, shows you the journal
 that explains why, writes the drop-in or the unit file you need, and **previews
@@ -123,7 +125,7 @@ Upgrades then arrive with the rest of your system updates.
 ### Any distribution, static binary
 
 ```sh
-curl -fsSL https://github.com/tui-tools/tui-systemd/releases/download/v0.2.1/tui-systemd_0.2.1_linux_amd64.tar.gz | tar -xz tui-systemd
+curl -fsSL https://github.com/tui-tools/tui-systemd/releases/download/v0.2.2/tui-systemd_0.2.2_linux_amd64.tar.gz | tar -xz tui-systemd
 sudo install -m0755 tui-systemd /usr/local/bin/tui-systemd
 ```
 
