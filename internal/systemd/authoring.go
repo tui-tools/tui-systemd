@@ -801,6 +801,21 @@ func BuildVerify(paths []string) (runner.Command, error) {
 	}, nil
 }
 
+// WithoutManCheck returns the verify command with `--man=no`, which stops
+// systemd-analyze from opening every man page a unit's Documentation= names.
+// On a machine without man pages (a minimal server image, a container) that
+// lookup fails for nearly every unit systemd ships, and the plan would read the
+// failure as systemd refusing the file. The flag only exists from systemd 235,
+// so the caller decides from the probed version.
+func WithoutManCheck(cmd runner.Command) runner.Command {
+	if len(cmd.Argv) < 2 || cmd.Argv[0] != "systemd-analyze" || cmd.Argv[1] != "verify" {
+		return cmd
+	}
+	argv := append([]string{"systemd-analyze", "verify", "--man=no"}, cmd.Argv[2:]...)
+	cmd.Argv = argv
+	return cmd
+}
+
 // BuildCalendar asks systemd to parse a calendar expression, which is how the
 // timer form knows an expression is good before it writes it.
 func BuildCalendar(expression string) (runner.Command, error) {

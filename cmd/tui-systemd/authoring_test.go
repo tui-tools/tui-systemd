@@ -278,3 +278,24 @@ func TestHelpMentionsTheAuthoringKeys(t *testing.T) {
 		t.Errorf("the help does not say what c does:\n%s", view)
 	}
 }
+
+// A plan the backend refuses keeps the form open and says why on screen. The
+// reason used to land in the status line, which the form view did not draw,
+// so enter seemed to do nothing (seen on a real machine, where systemd's own
+// check refused the file).
+func TestEditorShowsWhyAPlanWasRefused(t *testing.T) {
+	a, _ := newTestApp(t)
+	selectUnit(t, a, "nginx.service")
+	deliver(t, a, press(a, "E"))
+
+	press(a, "enter")
+	if a.mode != modeForm {
+		t.Fatalf("mode = %v, want the form to stay open", a.mode)
+	}
+	if a.status == "" {
+		t.Fatal("an unchanged drop-in should be refused with a reason")
+	}
+	if view := a.View(); !strings.Contains(view, "already says exactly this") {
+		t.Errorf("the form does not show the reason %q:\n%s", a.status, view)
+	}
+}

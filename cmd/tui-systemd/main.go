@@ -145,6 +145,12 @@ func run(args []string) error {
 		return runCheck(backend, backendCompat, os.Stdout)
 	}
 
+	// The unit file check reads Documentation= man pages unless told not to,
+	// and fails on a machine that has none; --man=no exists from systemd 235.
+	if real, ok := backend.(*systemd.Real); ok && backendCompat.Caps().Has(featureVerifyNoMan) {
+		real.SkipManCheck()
+	}
+
 	app := newApp(backend, theme.New(),
 		cfg.Int(keyJournalLines, systemd.DefaultJournalLines), backendCompat)
 	program := tea.NewProgram(app, tea.WithAltScreen())

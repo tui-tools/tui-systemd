@@ -4,9 +4,11 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14368/badge)](https://www.bestpractices.dev/projects/14368)
 
 <!-- stability:start -->
-> **Beta.** The family is days old and still changing. Package names, flags
-> and keys may move without notice until 1.0. Pin versions, and report what
-> breaks.
+> **Stable since v1.0.0.** Keys, flags and the `--check` JSON follow semver:
+> anything new arrives in a minor release, and a removal or a change of meaning
+> waits for the next major, announced one minor before. What stable means: [the
+> family's
+> bar](https://github.com/tui-tools/tui-kit/blob/main/docs/stability.md).
 <!-- stability:end -->
 
 A terminal UI for systemd units. It opens on what failed, shows you the journal
@@ -15,9 +17,9 @@ the exact command line of every change before running it**.
 
 ![Unit list](docs/screenshots/tui-systemd-main.png)
 
-> **Status: early, under validation.** An independent tool that follows the
-> [Omarchy](https://omarchy.org) visual style; it is **not** part of the Omarchy
-> project and not endorsed by its maintainers. Expect rough edges.
+> An independent tool that follows the [Omarchy](https://omarchy.org) visual
+> style; it is not part of the Omarchy project and not endorsed by its
+> maintainers.
 
 ## Install
 
@@ -125,7 +127,7 @@ Upgrades then arrive with the rest of your system updates.
 ### Any distribution, static binary
 
 ```sh
-curl -fsSL https://github.com/tui-tools/tui-systemd/releases/download/v0.2.2/tui-systemd_0.2.2_linux_amd64.tar.gz | tar -xz tui-systemd
+curl -fsSL https://github.com/tui-tools/tui-systemd/releases/download/v1.0.0/tui-systemd_1.0.0_linux_amd64.tar.gz | tar -xz tui-systemd
 sudo install -m0755 tui-systemd /usr/local/bin/tui-systemd
 ```
 
@@ -217,6 +219,35 @@ parser regression.
 [tui-lab](https://github.com/tui-tools/tui-lab) uses it to test this tool
 against real machines on Ubuntu, Fedora and Omarchy Server; the assertions live
 in [`test/smoke.sh`](test/smoke.sh).
+
+## Stability
+
+tui-systemd is stable since 1.0.0 and follows [semver](https://semver.org).
+What is frozen is the contract a script or a habit can depend on:
+
+- the keys: every key the help screen (`?`) and [Keys](#keys) list, on the
+  unit list, the journal, the unit file, timers and boot views, and in the
+  unit forms (`tab`, `←`/`→`, `space`, `enter`, `esc`);
+- the flags: `--check`, `--demo`, `--report`, `--sudo`, `--theme` and
+  `--version`, and the `TUI_SYSTEMD_*` configuration keys (`sudo`, `theme`,
+  `journal_lines`);
+- the `--check` JSON: every field name and what it means. At the top level:
+  `tool`, `version`, `backend`, `describe`, `compat`, the counts (`units`,
+  `active`, `failed`, `enabled`, `timers`, `blame`), `sample`, `journal` and
+  `unit_file`. Each `sample` row: `Name`, `Load`, `Active`, `Sub`,
+  `Description`, `FileState`, `Preset`. `journal`: `unit`, `lines`, `bytes`,
+  and `error` when the read failed. `unit_file`: `unit`, `files`, `bytes`, and
+  `error` when the read failed. `compat`: `backend`, `version`, `minimum`,
+  `status`, and `notes` and `detail` when there are any. A field that is left
+  out when empty is left out on purpose, and that is part of its meaning.
+
+A minor release only adds: new keys, new flags, new `--check` fields. Removing
+or renaming one, or changing what it means, happens only in a major release,
+and the minor release before that major warns about it, on screen and in
+`--check`. The commands a key previews may gain a safer flag or a check in a
+minor release; what they change on the machine does not. The bar a tool in the
+family meets to be called stable is in [tui-kit's stability
+page](https://github.com/tui-tools/tui-kit/blob/main/docs/stability.md).
 
 ## `--report`, for bug reports
 
@@ -311,7 +342,9 @@ this feature:
 3. **Check** it with `systemd-analyze verify`, before you are asked anything.
    `verify` warns about a value it cannot parse and still exits 0, so any
    output at all counts as a refusal: a line systemd would silently ignore is a
-   line you thought you were setting.
+   line you thought you were setting. On systemd 235 and later it runs with
+   `--man=no`, so a machine without man pages can still check a unit whose
+   Documentation= names one.
 4. **Review** the unified diff and the exact command lines.
 5. **Install** with `install -m 644` — the mode is set in the same call, so
    there is no window where the file exists with the wrong one — and
@@ -374,7 +407,7 @@ navigation: `j` for journal is worth more here than `j` for down, and `k`,
 
 ![Help](docs/screenshots/tui-systemd-help.png)
 
-## What v0.1 can do
+## What it can do
 
 - List every unit systemd knows, merged from `list-units --all` and
   `list-unit-files`, so a unit that is installed but has never started is
@@ -393,7 +426,7 @@ navigation: `j` for journal is worth more here than `j` for down, and `k`,
 - Show the slowest units of the last boot.
 - Follow the active Omarchy theme, and respect `NO_COLOR`.
 
-## What v0.1 cannot do
+## What it cannot do
 
 - **System units only.** No `--user` scope yet.
 - **No free-text unit editing.** The drop-in editor covers seven properties and
@@ -430,12 +463,13 @@ hidden; one below the minimum is marked as such and the tool still runs.
 | Version read with | `systemctl --version` |
 | Minimum | 230 |
 | Tested | `255`, `259`, `261` |
-| Version-gated features | `timers` (since 250), `boot-blame` (since 230) |
+| Version-gated features | `timers` (since 250), `boot-blame` (since 230), `verify-no-man` (since 235) |
 
 | Versions | What changes |
 | --- | --- |
 | `<250` | `list-timers` has no JSON output, so the timers view is not offered: the text table cannot be parsed without mangling its timestamps |
 | `<245` | `list-units --plain` is absent on some builds, so the unit list falls back to the decorated output |
+| `<235` | `systemd-analyze verify` has no `--man=no`, so the unit file check also opens every man page a unit's Documentation= names, and on a machine without man pages that lookup fails and the edit is refused |
 
 The tested versions are generated from `compat/results.jsonl`, which the tool's
 own smoke test appends to when it runs against a real machine in
