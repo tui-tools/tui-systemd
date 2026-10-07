@@ -11,6 +11,10 @@ import (
 // backendName is the name the manifest gives the backend this tool drives.
 const backendName = "systemd"
 
+// featureVerifyNoMan is the manifest feature for `systemd-analyze verify
+// --man=no`.
+const featureVerifyNoMan = "verify-no-man"
+
 // probeCompat reads the version of systemd the tool is about to drive.
 //
 // The facts it is judged against — the minimum version, the versions the lab

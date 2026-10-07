@@ -144,6 +144,10 @@
         {
           "name": "boot-blame",
           "since": "230"
+        },
+        {
+          "name": "verify-no-man",
+          "since": "235"
         }
       ],
       "notes": [
@@ -154,6 +158,10 @@
         {
           "range": "<245",
           "impact": "`list-units --plain` is absent on some builds, so the unit list falls back to the decorated output"
+        },
+        {
+          "range": "<235",
+          "impact": "`systemd-analyze verify` has no `--man=no`, so the unit file check also opens every man page a unit's Documentation= names, and on a machine without man pages that lookup fails and the edit is refused"
         }
       ],
       "tested": [
