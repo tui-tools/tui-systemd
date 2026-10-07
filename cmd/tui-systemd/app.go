@@ -327,8 +327,15 @@ func (a *app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		a.loadFailed = false
+		// Keep the cursor on the unit, not on the row: a re-read after an
+		// action re-sorts the list (a unit that stops failing leaves the top),
+		// and the next key must not land on whatever slid into its place.
+		selected, hadSelection := a.selectedUnit()
 		a.units = msg.units
 		a.applyFilter()
+		if hadSelection {
+			a.selectByName(selected.Name)
+		}
 		return a, nil
 
 	case timersMsg:
@@ -1009,6 +1016,18 @@ func (a *app) applyFilter() {
 	}
 	a.visible = kept
 	a.clampCursor()
+}
+
+// selectByName moves the cursor to the visible unit with this name, and leaves
+// it where it is when that unit is no longer visible.
+func (a *app) selectByName(name string) {
+	for i, u := range a.visible {
+		if u.Name == name {
+			a.cursor = i
+			a.clampCursor()
+			return
+		}
+	}
 }
 
 // unitHaystack is the text the filter matches against.

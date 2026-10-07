@@ -373,3 +373,46 @@ func names(units []systemd.Unit) []string {
 	}
 	return out
 }
+
+// A re-read re-sorts the list: failed units first, so a unit that recovers
+// leaves the top. The selection must follow the unit, or the next key acts on
+// whatever slid into its row.
+func TestReReadKeepsTheSelectionOnTheSameUnit(t *testing.T) {
+	a, _ := newTestApp(t)
+	if len(a.visible) < 3 {
+		t.Fatalf("the demo machine needs at least three units, got %d", len(a.visible))
+	}
+	a.cursor = 0
+	want := a.visible[0].Name
+
+	reordered := make([]systemd.Unit, len(a.units))
+	for i, u := range a.units {
+		reordered[len(a.units)-1-i] = u
+	}
+	a.Update(unitsMsg{units: reordered})
+
+	got, ok := a.selectedUnit()
+	if !ok || got.Name != want {
+		t.Fatalf("after the re-read the selection is %q, want %q", got.Name, want)
+	}
+	if a.cursor == 0 {
+		t.Fatalf("the unit moved to the end of the list, the cursor should have followed it")
+	}
+}
+
+// A unit that disappears from the list leaves the cursor where it was.
+func TestReReadWithoutTheSelectedUnitKeepsTheRow(t *testing.T) {
+	a, _ := newTestApp(t)
+	a.cursor = 1
+	gone := a.visible[1].Name
+	kept := make([]systemd.Unit, 0, len(a.units))
+	for _, u := range a.units {
+		if u.Name != gone {
+			kept = append(kept, u)
+		}
+	}
+	a.Update(unitsMsg{units: kept})
+	if a.cursor != 1 {
+		t.Fatalf("cursor = %d, want it to stay on row 1", a.cursor)
+	}
+}
