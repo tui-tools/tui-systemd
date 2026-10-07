@@ -5,6 +5,8 @@
   "tagline": "systemd units: what failed, why, and every action previewed",
   "description": "A terminal UI for systemd. It opens on what failed — failed units sort first, always — and puts the journal that explains why one key away. Timers show what is scheduled and when it last fired; the boot view shows what made the last boot slow.\n\nIt also writes. `c` shows the unit file as systemd assembles it. `E` opens a guided editor over a closed set of properties — Restart, RestartSec, MemoryMax, CPUQuota, Environment, Nice, and OnCalendar on a timer — and renders the whole drop-in at `/etc/systemd/system/<unit>.d/90-tui-systemd.conf`. `n` creates a service, or a timer and the service it starts, from a vetted template. Every write is staged in a temporary directory, read by `systemd-analyze verify` before you are asked anything, shown as a unified diff, and only then installed with `install -m 644` and a `daemon-reload`.\n\nEvery read works as an ordinary user, so the tool opens instantly and without a password; only a change escalates, and only behind a confirm dialog showing the exact command lines.\n\nRun `tui-systemd --demo` for a sample machine with a couple of interesting failures. Nothing touches your system.",
   "category": "systemd",
+  "stability": "stable",
+  "stableSince": "1.0.0",
   "homepage": "https://github.com/tui-tools/tui-systemd",
   "repo": "https://github.com/tui-tools/tui-systemd",
   "license": "MIT",
