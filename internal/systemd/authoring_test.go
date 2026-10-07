@@ -581,3 +581,22 @@ func TestSystemdAcceptsWhatThisToolWrites(t *testing.T) {
 		t.Fatalf("systemd-analyze verify refused the templates: %v\n%s", err, out)
 	}
 }
+
+func TestWithoutManCheck(t *testing.T) {
+	cmd, err := BuildVerify([]string{"/tmp/tui-systemd-1/demo.service"})
+	if err != nil {
+		t.Fatalf("BuildVerify: %v", err)
+	}
+	got := strings.Join(WithoutManCheck(cmd).Argv, " ")
+	want := "systemd-analyze verify --man=no /tmp/tui-systemd-1/demo.service"
+	if got != want {
+		t.Errorf("argv = %q, want %q", got, want)
+	}
+	if strings.Contains(strings.Join(cmd.Argv, " "), "--man") {
+		t.Error("WithoutManCheck changed the command it was given")
+	}
+	other := WithoutManCheck(runner.Command{Argv: []string{"systemd-analyze", "calendar", "daily"}})
+	if strings.Contains(strings.Join(other.Argv, " "), "--man") {
+		t.Error("only verify takes --man=no")
+	}
+}

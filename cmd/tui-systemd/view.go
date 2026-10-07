@@ -37,7 +37,11 @@ func (a *app) View() string {
 			ui.HelpScreen(a.theme, "tui-systemd — keys", helpKeys(), a.width),
 			a.width, a.height)
 	case modeForm:
-		return a.form.view(a.theme, a.width, a.height)
+		// The status line stays under the form: a plan the backend refuses
+		// (systemd rejecting the file, an ExecStart that is not absolute) is
+		// reported there, and without it enter would seem to do nothing.
+		status := ui.StatusLine(a.theme, a.statusKind, a.status, "", a.width)
+		return a.form.view(a.theme, a.width, max(a.height-1, 1)) + "\n" + status
 	case modePicker:
 		return a.picker.View(a.theme, a.width, a.height)
 	case modeCat:

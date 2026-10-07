@@ -30,7 +30,13 @@ type Real struct {
 	journalErr error
 	analyzeErr error
 	installErr error
+	// skipManCheck adds `--man=no` to the syntax check; see WithoutManCheck.
+	skipManCheck bool
 }
+
+// SkipManCheck makes the syntax check leave the Documentation= man pages
+// alone. The caller turns it on when the probed systemd knows the flag.
+func (r *Real) SkipManCheck() { r.skipManCheck = true }
 
 // readTimeout bounds a read. It is generous because `list-units` on a busy
 // machine with hundreds of units is not instant.
@@ -239,6 +245,9 @@ func (r *Real) verifier() Verifier {
 		if r.analyzeErr != nil {
 			return cmd.String(), "", fmt.Errorf(
 				"checking a unit file needs systemd-analyze: %w", r.analyzeErr)
+		}
+		if r.skipManCheck {
+			cmd = WithoutManCheck(cmd)
 		}
 		out, err := r.analyze.Read(ctx, cmd.Argv...)
 		return r.analyze.Preview(cmd), out, err

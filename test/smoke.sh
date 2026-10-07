@@ -186,12 +186,14 @@ else
 fi
 
 # 8. The syntax check the authoring screens depend on is available and
-#    unprivileged. Without it a write is still offered, but the confirm dialog
+#    unprivileged. It is run the way the tool runs it, with --man=no: without
+#    it, verify also opens every man page a unit's Documentation= names, and on
+#    a machine with no man pages (Omarchy Server) that fails for basic.target. Without it a write is still offered, but the confirm dialog
 #    has to say the file was never read — so whether it works here is part of
 #    what a compatibility result means.
 if command -v systemd-analyze >/dev/null 2>&1; then
   check "systemd-analyze verify runs unprivileged" \
-    'systemd-analyze verify /usr/lib/systemd/system/basic.target 2>&1; echo "exit=$?"' \
+    'systemd-analyze verify --man=no /usr/lib/systemd/system/basic.target 2>&1; echo "exit=$?"' \
     '^exit=0$'
 else
   echo "PASS  systemd-analyze is absent, so the editor would say the file was unchecked"

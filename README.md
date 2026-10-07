@@ -311,7 +311,9 @@ this feature:
 3. **Check** it with `systemd-analyze verify`, before you are asked anything.
    `verify` warns about a value it cannot parse and still exits 0, so any
    output at all counts as a refusal: a line systemd would silently ignore is a
-   line you thought you were setting.
+   line you thought you were setting. On systemd 235 and later it runs with
+   `--man=no`, so a machine without man pages can still check a unit whose
+   Documentation= names one.
 4. **Review** the unified diff and the exact command lines.
 5. **Install** with `install -m 644` — the mode is set in the same call, so
    there is no window where the file exists with the wrong one — and
@@ -430,12 +432,13 @@ hidden; one below the minimum is marked as such and the tool still runs.
 | Version read with | `systemctl --version` |
 | Minimum | 230 |
 | Tested | `255`, `259`, `261` |
-| Version-gated features | `timers` (since 250), `boot-blame` (since 230) |
+| Version-gated features | `timers` (since 250), `boot-blame` (since 230), `verify-no-man` (since 235) |
 
 | Versions | What changes |
 | --- | --- |
 | `<250` | `list-timers` has no JSON output, so the timers view is not offered: the text table cannot be parsed without mangling its timestamps |
 | `<245` | `list-units --plain` is absent on some builds, so the unit list falls back to the decorated output |
+| `<235` | `systemd-analyze verify` has no `--man=no`, so the unit file check also opens every man page a unit's Documentation= names, and on a machine without man pages that lookup fails and the edit is refused |
 
 The tested versions are generated from `compat/results.jsonl`, which the tool's
 own smoke test appends to when it runs against a real machine in
