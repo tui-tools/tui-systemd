@@ -853,6 +853,9 @@ func (a *app) writeBody(write systemd.WritePlan) string {
 	} else if write.Validation != "" {
 		parts = append(parts, "! the syntax check "+write.Validation)
 	}
+	if host := hostWarnings(write.HostWarnings); host != "" {
+		parts = append(parts, host)
+	}
 	if write.Warning != "" {
 		parts = append(parts, write.Warning)
 	}
@@ -860,6 +863,25 @@ func (a *app) writeBody(write systemd.WritePlan) string {
 		parts = append(parts, a.diffForDialog(diff))
 	}
 	return strings.Join(parts, "\n\n")
+}
+
+// maxHostWarnings is how many of the check's lines about other units the
+// dialog quotes. They are context, not the subject: the diff comes first.
+const maxHostWarnings = 3
+
+// hostWarnings quotes what the syntax check said about other units on this
+// machine, so a line that did not stop the write is still seen, and is not
+// mistaken for something about the file.
+func hostWarnings(lines []string) string {
+	if len(lines) == 0 {
+		return ""
+	}
+	shown := lines[:min(len(lines), maxHostWarnings)]
+	text := "About other units, not this file:\n  " + strings.Join(shown, "\n  ")
+	if more := len(lines) - len(shown); more > 0 {
+		text += fmt.Sprintf("\n  … and %d more", more)
+	}
+	return text
 }
 
 // diffForDialog trims a diff to what a dialog can hold. A file this tool

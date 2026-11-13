@@ -15,6 +15,10 @@ const backendName = "systemd"
 // --man=no`.
 const featureVerifyNoMan = "verify-no-man"
 
+// featureVerifyOwnErrors is the manifest feature for `systemd-analyze verify
+// --recursive-errors=no`.
+const featureVerifyOwnErrors = "verify-recursive-errors"
+
 // probeCompat reads the version of systemd the tool is about to drive.
 //
 // The facts it is judged against — the minimum version, the versions the lab

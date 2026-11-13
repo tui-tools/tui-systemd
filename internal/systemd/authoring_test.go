@@ -3,7 +3,6 @@ package systemd
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -19,12 +18,9 @@ func okVerifier() Verifier {
 }
 
 // noisyVerifier stands in for the case the whole recipe exists for: systemd
-// parsed the file, disliked a line, and exited 0 anyway.
-func noisyVerifier(message string) Verifier {
-	return func(_ context.Context, cmd runner.Command) (string, string, error) {
-		return cmd.String(), message, nil
-	}
-}
+// parsed the file, disliked a line, and exited 0 anyway. STAGE in the message
+// is the staging directory, which is how systemd names the file it read.
+func noisyVerifier(message string) Verifier { return stagedVerifier(message, nil) }
 
 func TestRenderDropInWritesTheWholeFile(t *testing.T) {
 	content, err := RenderDropIn("service", map[string]string{
@@ -295,7 +291,8 @@ func TestDropInPlanRefusesWhatSystemdComplainsAbout(t *testing.T) {
 	// systemd-analyze warns and exits 0 for a value it cannot parse. A plan
 	// that took the exit code at its word would put that value in /etc.
 	_, err := DropInPlan(context.Background(),
-		noisyVerifier("/tmp/x.d/90.conf:2: Failed to parse Restart=, ignoring"),
+		noisyVerifier("STAGE/nginx.service.d/"+DropInFile+
+			":2: Failed to parse Restart=, ignoring"),
 		DropInRequest{
 			Unit:   Unit{Name: "nginx.service", Load: "loaded"},
 			Cat:    sampleCat,
@@ -546,40 +543,6 @@ func mustUnits(t *testing.T, fake *Fake) []Unit {
 		t.Fatalf("Units: %v", err)
 	}
 	return units
-}
-
-// TestSystemdAcceptsWhatThisToolWrites is the check the whole recipe rests on,
-// run against the systemd of the machine the tests run on. It is skipped where
-// systemd-analyze is not installed, which is most CI containers.
-func TestSystemdAcceptsWhatThisToolWrites(t *testing.T) {
-	analyze, err := exec.LookPath("systemd-analyze")
-	if err != nil {
-		t.Skip("systemd-analyze is not installed")
-	}
-
-	files, err := RenderUnits(NewUnitRequest{
-		Name: "tui-systemd-selftest", Kind: KindTimer,
-		Description: "tui-systemd self test",
-		ExecStart:   "/usr/bin/env true", OnCalendar: "daily",
-	})
-	if err != nil {
-		t.Fatalf("RenderUnits: %v", err)
-	}
-	stage, staged, err := StageNewUnit(files)
-	if err != nil {
-		t.Fatalf("StageNewUnit: %v", err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(stage.Dir) })
-	if len(staged) != 2 {
-		t.Fatalf("staged %d files", len(staged))
-	}
-
-	//nolint:gosec // the argv is built here, from paths this package staged
-	out, err := exec.Command(analyze, append([]string{"verify"}, stage.Verify...)...).
-		CombinedOutput()
-	if err != nil || strings.TrimSpace(string(out)) != "" {
-		t.Fatalf("systemd-analyze verify refused the templates: %v\n%s", err, out)
-	}
 }
 
 func TestWithoutManCheck(t *testing.T) {

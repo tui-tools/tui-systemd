@@ -150,6 +150,14 @@ func run(args []string) error {
 	if real, ok := backend.(*systemd.Real); ok && backendCompat.Caps().Has(featureVerifyNoMan) {
 		real.SkipManCheck()
 	}
+	// The check also reports on every host unit the staged ones pull in, and
+	// a host whose vendor units use an option its systemd dropped makes that
+	// noise on every run. --recursive-errors=no limits it to the staged units
+	// and exists from systemd 250; below that the check sorts the lines by
+	// path on its own (see systemd.verify).
+	if real, ok := backend.(*systemd.Real); ok && backendCompat.Caps().Has(featureVerifyOwnErrors) {
+		real.OwnErrorsOnly()
+	}
 
 	app := newApp(backend, theme.New(),
 		cfg.Int(keyJournalLines, systemd.DefaultJournalLines), backendCompat)

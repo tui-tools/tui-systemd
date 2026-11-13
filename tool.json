@@ -150,12 +150,20 @@
         {
           "name": "verify-no-man",
           "since": "235"
+        },
+        {
+          "name": "verify-recursive-errors",
+          "since": "250"
         }
       ],
       "notes": [
         {
           "range": "<250",
           "impact": "`list-timers` has no JSON output, so the timers view is not offered: the text table cannot be parsed without mangling its timestamps"
+        },
+        {
+          "range": "<250",
+          "impact": "`systemd-analyze verify` has no `--recursive-errors=no`, so the unit file check also prints what it thinks of the host units the staged ones depend on; those lines are shown as context and do not refuse the file, but a check that fails while naming only other units is still a refusal"
         },
         {
           "range": "<245",

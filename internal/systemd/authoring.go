@@ -451,6 +451,11 @@ type WritePlan struct {
 	Validation string
 	// ValidationCommand is the exact command line the check ran.
 	ValidationCommand string
+	// HostWarnings are lines the check printed about other units on this
+	// machine — loaded because the staged units depend on them — and not
+	// about the files being written. They do not refuse the plan; the dialog
+	// shows them so the operator is not surprised by them later.
+	HostWarnings []string
 	// Warning is what the dialog must say beyond the diff.
 	Warning string
 	// Stage is the temporary directory holding the staged files. It has to
@@ -799,6 +804,25 @@ func BuildVerify(paths []string) (runner.Command, error) {
 		Argv:        argv,
 		Description: "Check the staged files with systemd's own parser",
 	}, nil
+}
+
+// WithOwnErrorsOnly returns the verify command with `--recursive-errors=no`,
+// which makes systemd-analyze judge only the units it was given: its exit
+// status reflects their problems and not their dependencies', and it stops
+// printing the warnings it finds in the dependencies. Without it, a host
+// whose vendor units use an option the running systemd dropped (systemd 259
+// and CPUAccounting=) fills the output with lines about units nobody asked
+// about. The flag exists from systemd 250 — 249 rejects it as an unknown
+// option — so the caller decides from the probed version, and verify sorts
+// the lines by path either way.
+func WithOwnErrorsOnly(cmd runner.Command) runner.Command {
+	if len(cmd.Argv) < 2 || cmd.Argv[0] != "systemd-analyze" || cmd.Argv[1] != "verify" {
+		return cmd
+	}
+	argv := append([]string{"systemd-analyze", "verify", "--recursive-errors=no"},
+		cmd.Argv[2:]...)
+	cmd.Argv = argv
+	return cmd
 }
 
 // WithoutManCheck returns the verify command with `--man=no`, which stops

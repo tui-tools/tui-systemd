@@ -341,10 +341,18 @@ this feature:
    shipped.
 3. **Check** it with `systemd-analyze verify`, before you are asked anything.
    `verify` warns about a value it cannot parse and still exits 0, so any
-   output at all counts as a refusal: a line systemd would silently ignore is a
-   line you thought you were setting. On systemd 235 and later it runs with
-   `--man=no`, so a machine without man pages can still check a unit whose
-   Documentation= names one.
+   line about the files being written counts as a refusal, whatever the exit
+   status: a line systemd would silently ignore is a line you thought you were
+   setting. A line counts as being about them when it names the staging
+   directory or the unit being written; a line it cannot place counts too, and
+   a check that fails is a refusal even when everything it printed was about
+   other units. What `verify` says about the host's own units, which it loads
+   because the new ones depend on them (on systemd 259, `CPUAccounting=`
+   warnings in vendor units), is shown in the dialog as context and does not
+   stop the write. On systemd 235 and later it runs with `--man=no`, so a
+   machine without man pages can still check a unit whose Documentation=
+   names one; on 250 and later with `--recursive-errors=no`, so it judges only
+   the units it was given.
 4. **Review** the unified diff and the exact command lines.
 5. **Install** with `install -m 644` — the mode is set in the same call, so
    there is no window where the file exists with the wrong one — and
@@ -463,11 +471,12 @@ hidden; one below the minimum is marked as such and the tool still runs.
 | Version read with | `systemctl --version` |
 | Minimum | 230 |
 | Tested | `255`, `259`, `261` |
-| Version-gated features | `timers` (since 250), `boot-blame` (since 230), `verify-no-man` (since 235) |
+| Version-gated features | `timers` (since 250), `boot-blame` (since 230), `verify-no-man` (since 235), `verify-recursive-errors` (since 250) |
 
 | Versions | What changes |
 | --- | --- |
 | `<250` | `list-timers` has no JSON output, so the timers view is not offered: the text table cannot be parsed without mangling its timestamps |
+| `<250` | `systemd-analyze verify` has no `--recursive-errors=no`, so the unit file check also prints what it thinks of the host units the staged ones depend on; those lines are shown as context and do not refuse the file, but a check that fails while naming only other units is still a refusal |
 | `<245` | `list-units --plain` is absent on some builds, so the unit list falls back to the decorated output |
 | `<235` | `systemd-analyze verify` has no `--man=no`, so the unit file check also opens every man page a unit's Documentation= names, and on a machine without man pages that lookup fails and the edit is refused |
 

@@ -299,3 +299,36 @@ func TestEditorShowsWhyAPlanWasRefused(t *testing.T) {
 		t.Errorf("the form does not show the reason %q:\n%s", a.status, view)
 	}
 }
+
+// F13: lines the check printed about other units do not stop the write, but
+// the dialog quotes them, labelled as not being about the file, and keeps the
+// diff.
+func TestWriteDialogQuotesHostWarningsAsContext(t *testing.T) {
+	a, _ := newTestApp(t)
+	host := []string{
+		"/usr/lib/systemd/system/xfs_scrub_all.service:26: Support for option CPUAccounting= has been removed and it is ignored",
+		"/usr/lib/systemd/system/system-xfs_scrub.slice:15: Support for option CPUAccounting= has been removed and it is ignored",
+		"/usr/lib/systemd/system/walinuxagent.service:21: Support for option CPUAccounting= has been removed and it is ignored",
+		"/usr/lib/systemd/system/other.service:3: Support for option CPUAccounting= has been removed and it is ignored",
+	}
+	body := a.writeBody(systemd.WritePlan{
+		Validated:    true,
+		Validation:   "accepted by systemd-analyze verify; it also printed 4 warnings about other units",
+		HostWarnings: host,
+		Files: []systemd.StagedFile{{Path: "/etc/systemd/system/x.service",
+			Diff: "+ExecStart=/usr/bin/true\n"}},
+	})
+	for _, want := range []string{"✓ accepted", "About other units, not this file",
+		host[0], host[2], "and 1 more", "+ExecStart=/usr/bin/true"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the dialog body is missing %q:\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, host[3]) {
+		t.Errorf("the dialog quotes more host warnings than it should:\n%s", body)
+	}
+	if strings.Contains(a.writeBody(systemd.WritePlan{Validated: true,
+		Validation: "accepted"}), "other units") {
+		t.Error("a check with nothing about other units says something about them")
+	}
+}

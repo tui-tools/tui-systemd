@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/tui-tools/tui-kit/runner"
@@ -24,11 +26,29 @@ type Verifier func(ctx context.Context, cmd runner.Command) (preview, output str
 
 // verify runs the check and records its verdict on the plan.
 //
-// `systemd-analyze verify` reports a property it cannot parse as a warning and
-// still exits 0, so a zero exit is not enough: any output at all is treated as
-// a refusal. That is stricter than systemd itself, and deliberately — a line
+// `systemd-analyze verify` loads the staged units and, through their
+// dependencies, a good part of the host's own units, and it prints what it
+// thinks of all of them. So the verdict is read line by line, and a line
+// counts against the plan when it is about a file being written: it names a
+// path inside the staging directory or the name of a unit being written (see
+// ownLine). A line that cannot be attributed counts against it too.
+//
+// A warning about a file being written refuses the plan even when the exit
+// status is 0. systemd reports a property it cannot parse as a warning and
+// goes on, so that is stricter than systemd itself, and deliberately: a line
 // systemd would silently ignore is a line the operator thought they were
 // setting.
+//
+// A line about some other unit — on systemd 259, the CPUAccounting= warnings
+// for vendor units nobody here touched — does not refuse anything. It is
+// kept on the plan and shown as context, because it is true and it is this
+// machine, but it is not about the file being written.
+//
+// The exit status still counts: a check that failed is a refusal even when
+// everything it printed was about other units. With --recursive-errors=no
+// (systemd 250 and later, see WithOwnErrorsOnly) a failure means one of the
+// units being written failed; without it, it may be a dependency, and the
+// plan stays refused rather than guessing.
 func verify(ctx context.Context, verifier Verifier, plan *WritePlan,
 	paths []string) error {
 	cmd, err := BuildVerify(paths)
@@ -38,23 +58,138 @@ func verify(ctx context.Context, verifier Verifier, plan *WritePlan,
 	preview, out, err := verifier(ctx, cmd)
 	plan.ValidationCommand = preview
 	out = strings.TrimSpace(out)
+	own, host := splitVerifyOutput(out, paths)
 	switch {
-	case err != nil && out != "":
-		return fmt.Errorf("systemd refused the file: %s", runner.FirstLine(out))
-	case err != nil:
+	case len(own) > 0:
+		return fmt.Errorf("systemd refused the file: %s", own[0])
+	case err != nil && out == "":
 		// The check itself could not run — systemd-analyze is not installed,
 		// most likely. That is not a reason to refuse the edit, but it is a
 		// reason for the dialog to say the file was never read.
 		plan.Validation = "could not run: " + runner.FirstLine(err.Error())
-	case out != "":
-		// Exit 0 with something to say: a property systemd would parse and
-		// then ignore. It never reaches /etc.
-		return fmt.Errorf("systemd refused the file: %s", runner.FirstLine(out))
+	case err != nil:
+		return fmt.Errorf("systemd refused the file: the check failed, and "+
+			"what it printed is about other units: %s", host[0])
 	default:
 		plan.Validated = true
 		plan.Validation = "accepted by " + preview
+		if len(host) > 0 {
+			plan.HostWarnings = host
+			plan.Validation += fmt.Sprintf("; it also printed %d %s about "+
+				"other units on this machine, not about these files",
+				len(host), plural(len(host), "warning", "warnings"))
+		}
 	}
 	return nil
+}
+
+// plural picks the word for a count.
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
+}
+
+// splitVerifyOutput sorts the lines `systemd-analyze verify` printed into the
+// ones about the files being written and the ones about other units.
+func splitVerifyOutput(out string, paths []string) (own, host []string) {
+	if out == "" {
+		return nil, nil
+	}
+	dirs, names := verifySubjects(paths)
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if ownLine(line, dirs, names) {
+			own = append(own, line)
+		} else {
+			host = append(host, line)
+		}
+	}
+	return own, host
+}
+
+// verifySubjects returns what identifies the files being written: the
+// directories they were staged in, and the names of their units.
+func verifySubjects(paths []string) (dirs, names []string) {
+	seen := map[string]bool{}
+	for _, path := range paths {
+		dir := filepath.Dir(path)
+		if !seen[dir] {
+			seen[dir] = true
+			dirs = append(dirs, dir+"/")
+		}
+		names = append(names, filepath.Base(path))
+	}
+	return dirs, names
+}
+
+// ownLine decides whether one line of the check's output is about a file
+// being written. systemd prints two shapes of line, and they were checked
+// against systemd 249 to 259:
+//
+//	<path>:<line>: <message>   a problem found parsing a file
+//	<unit>: <message>          a problem found checking a loaded unit
+//
+// A line is about the files being written when it names the staging
+// directory (the unit itself, and the drop-ins staged beside it) or the name
+// of a unit being written anywhere — which also covers a drop-in of an edited
+// unit that lives on the host, since that file is part of the same unit.
+// A line is about another unit when it starts with another path or another
+// unit's name. Anything else is counted as being about the file: an output
+// this tool cannot place is not one it may ignore.
+func ownLine(line string, dirs, names []string) bool {
+	for _, dir := range dirs {
+		if strings.Contains(line, dir) {
+			return true
+		}
+	}
+	for _, name := range names {
+		if mentionsUnit(line, name) {
+			return true
+		}
+	}
+	if subject, _, ok := strings.Cut(line, ": "); ok {
+		if pathLineRe.MatchString(subject) || ValidUnitName(subject) {
+			return false
+		}
+	}
+	return true
+}
+
+// pathLineRe is the subject of a parse warning: an absolute path to a unit
+// file or drop-in, and the line number in it.
+var pathLineRe = regexp.MustCompile(`^/[^\s:]+(:[0-9]+)?$`)
+
+// mentionsUnit reports whether a line names a unit as a whole word: as
+// itself, or as the directory its drop-ins live in. my-nginx.service does
+// not mention nginx.service.
+func mentionsUnit(line, name string) bool {
+	for rest := line; ; {
+		i := strings.Index(rest, name)
+		if i < 0 {
+			return false
+		}
+		before := byte(' ')
+		if i > 0 {
+			before = rest[i-1]
+		}
+		after := rest[i+len(name):]
+		if unitBoundary(before) && (after == "" || unitBoundary(after[0]) ||
+			strings.HasPrefix(after, ".d/")) {
+			return true
+		}
+		rest = rest[i+1:]
+	}
+}
+
+// unitBoundary is a character that can sit next to a unit name in a line
+// without being part of a longer one.
+func unitBoundary(c byte) bool {
+	return strings.IndexByte(" \t/'\"()[],:=", c) >= 0
 }
 
 // DropInPlan renders, stages and checks the drop-in for a unit, and returns
