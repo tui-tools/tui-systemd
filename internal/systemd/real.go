@@ -32,11 +32,19 @@ type Real struct {
 	installErr error
 	// skipManCheck adds `--man=no` to the syntax check; see WithoutManCheck.
 	skipManCheck bool
+	// ownErrorsOnly adds `--recursive-errors=no` to the syntax check; see
+	// WithOwnErrorsOnly.
+	ownErrorsOnly bool
 }
 
 // SkipManCheck makes the syntax check leave the Documentation= man pages
 // alone. The caller turns it on when the probed systemd knows the flag.
 func (r *Real) SkipManCheck() { r.skipManCheck = true }
+
+// OwnErrorsOnly makes the syntax check judge only the staged units and not
+// the host units they depend on. The caller turns it on when the probed
+// systemd knows the flag.
+func (r *Real) OwnErrorsOnly() { r.ownErrorsOnly = true }
 
 // readTimeout bounds a read. It is generous because `list-units` on a busy
 // machine with hundreds of units is not instant.
@@ -248,6 +256,9 @@ func (r *Real) verifier() Verifier {
 		}
 		if r.skipManCheck {
 			cmd = WithoutManCheck(cmd)
+		}
+		if r.ownErrorsOnly {
+			cmd = WithOwnErrorsOnly(cmd)
 		}
 		out, err := r.analyze.Read(ctx, cmd.Argv...)
 		return r.analyze.Preview(cmd), out, err
