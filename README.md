@@ -148,7 +148,7 @@ Upgrades then arrive with the rest of your system updates.
 ### Any distribution, static binary
 
 ```sh
-curl -fsSL https://github.com/tui-tools/tui-systemd/releases/download/v1.0.2/tui-systemd_1.0.2_linux_amd64.tar.gz | tar -xz tui-systemd
+curl -fsSL https://github.com/tui-tools/tui-systemd/releases/download/v1.0.3/tui-systemd_1.0.3_linux_amd64.tar.gz | tar -xz tui-systemd
 sudo install -m0755 tui-systemd /usr/local/bin/tui-systemd
 ```
 
